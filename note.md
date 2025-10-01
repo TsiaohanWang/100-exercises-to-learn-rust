@@ -2058,11 +2058,6 @@ fn print_if_even<T: IsEven + Debug>(n: T) {
 }
 ```
 
-### Clone Trait
-
-由于所有权系统的存在，那些关于所有权和借用的限制可能会带来一些不便。有时我们可能需要调用一个会获取值所有权的函数，但在那之后我们仍然需要使用那个值。这时可以使用 `Clone` trait。
-
-
 ### Deref trait
 
 `Deref` trait 是 Rust 语言中一种名为解引用强制转换（deref coercion）的特性背后的机制。该 trait 定义在标准库的 `std::ops` 模块中。
@@ -2255,3 +2250,124 @@ impl Add<&u32> for &u32 { // 为 &u32 类型实现 Add<&u32>
 ```
 
 `Output` 不能是一个泛型参数。一旦操作数的类型确定，操作的结果类型必须是唯一确定的。这就是为什么它是一个关联类型。而我们为 `u32` 多次实现了 `Add` trait，这允许我们让 `u32`（左操作数）与 `u32` 或 `&u32`（右操作数）相加，因此 `RHS` 是一个泛型参数。
+
+### Clone trait 和 Copy trait
+
+由于所有权系统的存在，那些关于所有权和借用的限制可能会带来一些不便。有时我们可能需要调用一个会获取值所有权的函数，但在那之后我们仍然需要使用那个值。这时可以使用 `Clone` trait。
+
+```rust
+pub trait Clone {
+    fn clone(&self) -> Self;
+}
+```
+
+`Clone` 是 Rust 标准库中定义的一个 trait：它的 `clone` 方法接受一个对 `self` 的引用，并返回一个同类型的、拥有所有权的新实例。可以将 `clone` 理解为一种创建对象深拷贝（deep copy）的方式。
+
+要使一个类型变得可以 Clone，我们必须为它实现 `Clone` trait。你几乎总是通过派生（deriving）它来实现 `Clone`：
+
+```rust
+#[derive(Clone)]
+struct MyType {
+    // 其他字段
+}
+```
+
+这之后就可以对 `MyType` 实例直接调用 `clone` 方法了。
+
+```rust
+let instance = MyType {
+    // ...
+}
+
+let another_instance = instance.clone();
+
+consumer(another_instance); // another_instance 的所有权移动
+
+// 此时 instance 依然可用
+```
+
+让我们考虑使用 `u32` 而不是 `String` 类型。
+
+```rust
+fn consumer(s: u32) { /* */ }
+
+fn example() {
+    let s: u32 = 5;
+    consumer(s);
+    let t = s + 1;
+}
+```
+
+这段代码会毫无错误地编译通过。这表明 `String` 和 `u32` 之间有某种区别，使得后者在没有 `clone()` 的情况下也能工作。这种区别就是 `u32` 实现了 `Copy` 而 `String` 并没有。
+
+`Copy` 是 Rust 标准库中定义的另一个 trait，它是一个标记 trait，没有需要实现的方法，就像 `Sized` 一样。
+
+```rust
+pub trait Copy: Clone { }
+```
+
+如果一个类型实现了 `Copy`，那么就不需要调用 `clone` 方法来创建该类型的新实例：Rust 会隐式地完成。`u32` 就是一个实现了 `Copy` 的类型，这就是为什么上面的例子能无错编译通过的原因：当 `consumer(s)` 被调用时，Rust 通过对 `s` 执行按位复制（bitwise copy）来创建一个新的 `u32` 实例，然后将这个新实例传递给 `consumer`。这一切都在幕后发生，你无需做任何事情。
+
+要注意，一个类型必须满足一些要求才能被允许实现 `Copy`。
+
+- 它必须实现 `Clone`，因为 `Copy` 是 `Clone` 的子 trait。这很合理：如果 Rust 可以隐式地创建一个类型的新实例，那么它也应该能够通过调用 `clone` 来显式地创建一个新实例。
+- 该类型除了在内存中占用的 `std::mem::size_of` 字节之外，不管理任何额外的资源（例如堆内存、文件句柄等）。
+- 该类型不是一个可变引用 (`&mut T`)。
+
+如果这三个条件都满足，那么 Rust 就可以安全地通过对原始实例执行按位复制来创建一个新实例。
+
+- `String` 是一个没有实现 `Copy` 的类型。因为它管理着一个额外的资源：存储字符串数据的堆分配内存缓冲区。
+
+- `&mut u32` 也没有实现 `Copy`，即使 `u32` 实现了。这是因为所有权规则规定：在任何给定的时间点，一个值只能有一个可变借用。如果 `&mut u32` 实现了 `Copy`，你就可以为同一个值创建多个可变引用，并在多个地方同时修改它。那将违反 Rust 的借用规则。因此，无论 `T` 是什么，`&mut T` 都永远不会实现 `Copy`。
+
+在大多数情况下不需要手动实现 `Copy`。你可以直接派生它，像这样：
+
+```rust
+#[derive(Copy, Clone)]
+struct MyStruct {
+    field: u32,
+}
+```
+
+### Drop trait
+
+当变量离开其作用域时，Rust 会自动隐式调用其析构函数（destructors）`std::mem::drop`，即：
+
+- 回收该类型所占用的内存（即 `std::mem::size_of` 字节）。
+- 清理该值可能管理的所有额外资源（例如 `String` 的堆缓冲区）。
+
+`Drop` trait 是一种机制，让你能为你的类型定义额外的清理逻辑，这超出了编译器自动为你做的范畴。无论你在 `drop` 方法中放入什么逻辑，当该值离开作用域时，这些逻辑都将被执行。
+
+```rust
+pub trait Drop {
+    fn drop(&mut self);
+}
+```
+
+> [!INFO] `Drop` trait 与 `Copy` trait
+> 如果一个类型管理着超出其在内存中所占用的 `std::mem::size_of` 字节的额外资源，那么它就不能实现 `Copy` trait。编译器是如何知道一个类型是否管理着额外资源的呢？答案是通过 `Drop` trait 的实现。
+> 
+> 如果你的类型有一个显式的 `Drop` 实现，编译器就会假定你的类型附带有额外的资源，并且不会允许你实现 `Copy`。
+>
+> ```rust
+> #[derive(Clone, Copy)]
+> struct MyType; // 这是一个单元结构体
+> 
+> impl Drop for MyType {
+>     fn drop(&mut self) {
+>        // 这里只要有一个“空的” Drop 实现就足够了
+>     }
+> }
+> // 编译会报错，因为MyType 实现了 Drop，即便方法体是空的
+> // 编译器会判定 MyType 附带有额外资源无法实现 Copy
+> ```
+
+### Trait 用法
+
+Rust 中的 trait 很强大，但不要滥用。请记住以下几条准则：
+
+- 如果一个函数总是用同一种具体类型来调用，就不要将其泛型化。这会给你的代码库引入不必要的间接性，使其更难理解和维护。
+- 如果一个 trait 只有一个实现，就不要创建它。这通常意味着这个 trait 是不必要的。
+- 只要合理，就为你的自定义类型实现标准库中的 trait（如 `Debug`、`PartialEq` 等）。这会让你的类型更符合 Rust 的语言习惯，也更易于使用，从而解锁标准库和生态系统中其他 crate 提供的许多功能。
+- 如果你需要第三方 crate 在其生态系统内所解锁的功能，就为你的类型实现这些 crate 中定义的 trait。
+- 警惕不要仅仅为了在测试中使用模拟对象（mock）而将代码泛型化。这种方法的维护成本可能很高，通常采用不同的测试策略会更好。
