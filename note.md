@@ -894,7 +894,7 @@ fn main() {
 
 `Option<T>` 和 `T` 是不同的类型，它们之间无法直接操作，因此在对 `Option<T>` 进行运算之前必须将其转换为 `T`，通常这能帮助我们捕获到空值最常见的问题之一：假设某值不为空但实际上为空的情况。这限制了空值的泛滥以增加 Rust 代码的安全性。
 
-### Result 枚举
+### Result 枚举与函数返回 Result 时的错误处理
 
 `Result` 类型是定义在标准库中的一个枚举。它有两个变体：`Ok(T)` 代表一次成功的操作，它持有操作的输出 `T`；`Err(E)` 代表一次失败的操作，它持有发生的错误 `E`。
 
@@ -918,7 +918,7 @@ enum Result<T, E> {
 > 
 > 不过请记住，panic 依然存在。它们是为不可恢复的错误（unrecoverable errors）准备的，且不会被类型系统追踪，就像其他语言中的异常一样。
 
-Rust 通过 `Result`，强制你将可失败性编码在函数的签名中。如果一个函数可能会失败（并且你希望调用者有机会处理这个错误），它就必须返回一个 `Result`。
+Rust 通过 `Result`，强制你将可失败性编码在函数的签名中。如果一个函数可能会失败（并且你希望调用者有机会处理这个错误），它就必须返回一个 `Result`。这就是 `Result` 的巨大优势：它使得可失败性变得明确。
 
 ```rust
 // 仅仅通过查看签名，你就知道这个函数可能会失败
@@ -928,7 +928,62 @@ fn parse_int(s: &str) -> Result<i32, ParseIntError> {
 }
 ```
 
-这就是 `Result` 的巨大优势：它使得可失败性变得明确。
+同时，Rust 的 `Result` 强制你在调用点处理错误。如果你调用一个返回 `Result` 的函数，Rust 不会允许你隐式地忽略错误情况。
+
+```rust
+fn parse_int(s: &str) -> Result<i32, ParseIntError> {
+    // ...
+}
+
+let number = parse_int("42") + 2; // 编译错误
+// 并没有处理返回 Err 时的情况
+```
+
+调用一个返回 `Result` 的函数时，一般有两种选择：
+
+- 如果操作失败，就引发 panic。这可以通过 `unwrap()` 或 `expect( /*...*/ )` 方法来完成。
+- 使用 `match` 表达式解构 `Result`，以显式地处理错误情况。
+
+```rust
+// 使用 unwrap()，这样如果 parse_int 返回 Err，则会 panic
+let number = parse_int("42").unwrap();
+
+// 使用 expect 允许你指定一个自定义的 panic 信息
+let number = parse_int("42").expect("无法解析整数");
+
+// 使用 match 显式处理错误
+match parse_int("42") {
+    Ok(number) => println!("解析出的数字: {}", number),
+    Err(err) => eprintln!("错误: {}", err),
+}
+```
+
+但是对于更复杂的情况，以上处理方案并不理想。更好的选择是使用枚举表示不同的错误情况。
+
+通过使用错误枚举，你将不同的错误情况编码到了类型系统中——它们成为了这个可能失败的函数签名的一部分。这简化了调用者的错误处理，因为他们可以使用 `match` 表达式来针对不同的错误情况做出响应：
+
+```rust
+// 一个错误枚举，用于表示从字符串解析 u32 时可能发生的不同错误情况
+enum U32ParseError {
+    NotANumber,
+    TooLarge,
+    Negative,
+}
+
+match s.parse_u32() {
+    Ok(n) => n,
+    Err(U32ParseError::Negative) => 0,
+    Err(U32ParseError::TooLarge) => u32::MAX,
+    Err(U32ParseError::NotANumber) => {
+        panic!("不是一个数字: {}", s);
+    }
+}
+```
+
+> [!INFO] 使用实现了 Error trait 的错误枚举
+> 更好的实践是，对错误枚举实现 `Error` trait。由于该 trait 是 `Debug` 和 `Display` 的子 trait，因此为了实现 `Error` 必须要提供 `Debug` 和 `Display` 的具体实现（其中 `Debug` 可以用派生宏实现）。
+>
+> 另外，有一些第三方的 crate 会提供自动实现 `Error` trait 的派生宏。例如 `thiserror`。这样我们可以避免为错误类型一个个手动实现 `Error`。
 
 ### match 控制流结构
 
@@ -1440,15 +1495,50 @@ pub fn eat_at_restaurant() {
 }
 ```
 
-### 使用外部包
+### 外部包与依赖
 
-为了在项目中使用外部包，在 `Cargo.toml` 中加入如下行：
+一个包（package）可以通过在其 `Cargo.toml` 文件的 `[dependencies]` 部分中列出其他包来依赖它们。最常用的方法是 `包名 = "版本号"`。
 
 ```toml
-包名 = "版本号"
+[dependencies]
+thiserror = "1"
 ```
 
-这行告诉 Cargo 要从 crates.io 下载某外部包和其依赖，并使其可在项目代码中使用。为了能够具体使用，通过 `use` 将其中定义的项或模块引入项目包的作用域中。
+这会将 `thiserror` 添加为你的包的一个依赖，其最低版本为 `1.0.0`。`thiserror` 将会从 Rust 的官方包注册中心 crates.io 上拉取。当你运行 `cargo build` 时，cargo 会经历以下几个阶段：
+
+1. 依赖解析（Dependency resolution）
+2. 下载依赖
+3. 编译你的项目（你自己的代码和所有依赖）
+
+> [!INFO]
+> 如果你的项目有一个 `Cargo.lock` 文件并且你的清单文件（manifest files）没有改变，依赖解析这一步将会被跳过。
+> 
+> 锁文件（lockfile）是在一次成功的依赖解析后由 cargo 自动生成的：它包含了你项目中使用的所有依赖的确切版本，并用于确保在不同的构建中（例如在 CI 中）都能一致地使用相同的版本。如果你在一个有多名开发者的项目中工作，你应该将 `Cargo.lock` 文件提交到你的版本控制系统中。
+>
+> 可以使用 `cargo update` 命令来更新 `Cargo.lock` 文件，使其包含所有依赖的最新（兼容）版本。
+
+#### 路径依赖
+
+在同时开发多个本地的包时，可以使用路径来指定一个依赖。这个路径是相对于声明该依赖的包的 `Cargo.toml` 文件的。
+
+```toml
+[dependencies]
+my-library = { path = "../my-library" }
+```
+
+#### 开发依赖
+
+你还可以指定仅在开发时需要的依赖——也就是说，它们只在你运行 `cargo test` 时才会被拉取。
+它们需要放在 `Cargo.toml` 文件的 `[dev-dependencies]` 部分：
+
+```toml
+[dev-dependencies]
+static_assertions = "1.1.0"
+```
+
+#### use 关于外部包与依赖的用法
+
+为了能够具体使用，通过 `use` 将其中定义的项或模块引入项目包的作用域中。
 
 ```rust
 use 外部包名::...::项名
@@ -2039,7 +2129,7 @@ pub trait PartialEq {
 
 算术运算符位于 `std::ops` 模块中，而比较运算符则位于 `std::cmp` 模块中。
 
-### 派生宏
+### 使用派生宏自动实现 trait
 
 如果对元组、结构体、枚举等类型实现了 trait，当类型的定义发生变化时，需要更新 trait 的实现。为了避免出现潜在的问题，我们将其使用 `let` 解构。这样如果我们忘记更新实现，编译器会使得编译不通过，抱怨解构是有问题的。
 
@@ -2223,6 +2313,9 @@ where
 只要类型 `U` 实现了 `From<T>`，那么 `T` 的 `Into<U>` 就会被自动实现。换言之，`From` 和 `Into` 是一对对偶 trait。
 
 每当你看到 `into()`，你都在见证一次类型间的转换。只要编译器能从上下文中明确无误地推断出目标类型，`into()` 就能直接工作。
+
+> [!INFO]
+> Rust 标准库中用 `From`/`Into` 定义不会失败的类型转换，但是也用 `TryFrom`/`TryInto` 来定义了可能失败的类型转换。
 
 ### 泛型（generic）与关联类型（associated type）
 
@@ -2423,6 +2516,186 @@ pub trait Drop {
 > // 编译会报错，因为MyType 实现了 Drop，即便方法体是空的
 > // 编译器会判定 MyType 附带有额外资源无法实现 Copy
 > ```
+
+### Error trait、source 方法与 ? 运算符
+
+`Result<T, E>` 中的 `Err` 变体的类型没有任何限制，但一个好的实践是使用一个实现了 `Error` trait 的类型。`std::error::Error` 是 Rust 错误处理体系的基石。由定义可知，`Error` 有两个父 trait：`Debug` 和 `Display`。如果一个类型想要实现 `Error`，它也必须实现 `Debug` 和 `Display`。
+
+```rust
+// Error trait 的简化定义（完整定义在后面）
+pub trait Error: Debug + Display { /* ... */ }
+```
+
+> [!INFO] Debug trait 和 Display trait
+> 从“机械”的角度来看，`Display` 和 `Debug` 是相同的——它们都编码了一个类型应该如何被转换成类似字符串的表示形式。
+> 
+> ```rust
+> // Debug trait
+> pub trait Debug {
+>     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error>;
+> }
+> 
+> // Display trait
+> pub trait Display {
+>     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error>;
+> }
+> ```
+>
+> 它们的不同之处在于其目的：`Display` 返回的是一种意图给“最终用户”看的表示形式，而 `Debug` 提供的是一种更适合开发者和服务运维人员的底层表示形式。这就是为什么 `Debug` 可以使用 `#[derive(Debug)]` 属性自动实现，而 `Display` 则需要手动实现的原因。
+
+> [!INFO]
+> 我们可以像前面那样为一个自定义错误类型“手动”实现 `Error` trait，但如果类型很多，就会产生很多样板代码。可以使用 `thiserror` 来移除一些样板代码。
+> 
+> `thiserror` 是一个 Rust crate，它提供了一个第三方的过程宏（procedural macro）来简化自定义错误类型的创建。
+> 
+> ```rust
+> #[derive(thiserror::Error, Debug)]
+> enum TicketNewError {
+>     #[error("{0}")]
+>     TitleError(String),
+>     #[error("{0}")]
+>     DescriptionError(String),
+> }
+> ```
+> 
+> 派生宏是过程宏的一个子集，过程宏是一种在编译时生成 Rust 代码的方式。每个过程宏都可以定义自己的语法，就 `thiserror` 而言，我们有：
+> 
+> - `#[derive(thiserror::Error)]`：这是在 `thiserror` 中为一个自定义错误类型派生 `Error` trait 的语法。
+> - `#[error("{0}")]`：这是为自定义错误类型的每个变体定义 `Display` 实现的语法。当错误被显示时，`{0}` 会被该变体的第零个字段（在本例中是 `String`）所替换。也可以在双引号内加入其它自定义内容。
+>
+> 由此可知，我们只需要将 `thiserror::Error` 应用在错误类型上，并且标明对每个变体的 `Display`，就相当于对该类型实现了 `Display` 和 `Error`。
+
+事实上，`Error` trait 并不是没有方法的。它有一个含默认实现的 `source` 方法。`source` 方法是一种访问错误根源（error cause）的方式，如果存在的话。
+
+```rust
+pub trait Error: Debug + Display {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+```
+
+`dyn Error` 是一个 trait 对象（trait object）。它是一种引用任何实现了 `Error` trait 的类型的方式。而 `'static` 是一个特殊的生命周期说明符（lifetime specifier），其意味着该引用在整个程序执行期间都有效。组合起来 `&(dyn Error + 'static)` 就是一个指向 trait 对象的引用，该对象实现了 `Error` trait 并且在整个程序执行期间都有效。
+
+> [!INFO]
+> 错误通常是链式的，意味着一个错误是由另一个错误引起的：你有一个由底层错误（例如，无法解析数据库主机名）引起的高层错误（例如，无法连接到数据库）。`source` 方法允许你“遍历”整个错误链，这在日志中捕获错误上下文时经常使用。
+
+`Error` trait 提供了一个 `source` 的默认实现，它总是返回 `None`（即没有潜在的根源错误）。你也可以覆盖这个默认实现，为你的错误类型提供一个根源。
+
+```rust
+use std::error::Error;
+
+#[derive(Debug)]
+struct DatabaseError {
+    source: std::io::Error
+}
+
+impl std::fmt::Display for DatabaseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "无法连接到数据库")
+    }
+}
+
+impl std::error::Error for DatabaseError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(&self.source)
+    }
+}
+```
+
+> [!INFO] 使用 thiserror 自动实现 source 方法
+> `thiserror` 提供了三种为你的错误类型自动实现 `source` 的方法：
+>
+> - 名为 `source` 的字段会自动被用作错误的根源；
+>
+> ```rust
+> #[derive(thiserror::Error, Debug)]
+> pub enum MyError {
+>     #[error("无法连接到数据库")]
+>     DatabaseError {
+>         source: std::io::Error
+>     }
+> }
+> ```
+>
+> - 一个用 `#[source]` 属性注解的字段会自动被用作错误的根源；
+>
+> ```rust
+> #[derive(thiserror::Error, Debug)]
+> pub enum MyError {
+>     #[error("无法连接到数据库")]
+>     DatabaseError {
+>         #[source]
+>         inner: std::io::Error
+>     }
+> }
+> ```
+>
+> - 一个用 `#[from]` 属性注解的字段会自动被用作错误的根源，并且 `thiserror` 还会自动生成一个 `From` 实现，用于将该注解的类型转换为你的错误类型。
+>
+> ```rust
+> #[derive(thiserror::Error, Debug)]
+> pub enum MyError {
+>     #[error("无法连接到数据库")]
+>     DatabaseError {
+>         #[from]
+>         inner: std::io::Error
+>     }
+> }
+> ```
+
+`?` 运算符是用于传播错误（propagating errors）的简写语法。当在返回 `Result` 的函数中使用时，如果 `Result` 是 `Err`，它会提前返回错误。可以使用 `?` 运算符来显著缩短你的错误处理代码。
+
+```rust
+use std::fs::File;
+use std::io::Read; // 需要引入 Read trait
+
+fn read_file() -> Result<String, std::io::Error> {
+    let mut file = File::open("file.txt")?;
+    // 等价于
+    // let mut file = match File::open("file.txt") {
+    //     Ok(file) => file,
+    //     Err(e) => {
+    //         return Err(e.into()); // .into() 用于类型转换
+    //     }
+    // };
+
+    let mut contents = String::new();
+
+    file.read_to_string(&mut contents)?;
+    // 等价于
+    // match file.read_to_string(&mut contents) {
+    //     Ok(_) => (),
+    //     Err(e) => {
+    //         return Err(e.into()); // .into() 用于类型转换
+    //     }
+    // }
+
+    Ok(contents)
+}
+```
+
+特别地，`?` 运算符会自动将可能失败的操作的错误类型转换为函数的错误类型，前提是存在可能的转换（即有一个合适的 `From` 实现）。
+
+### TryFrom trait 和 TryInto trait
+
+前面提到 `From`/`Into` 是不会失败的类型转换，那么对于可能失败的类型转换，Rust 提供了 `TryFrom`/`TryInto`。它们和 `From`/`Into` 一样定义于 `std::convert` 模块。
+
+两者主要的区别是，`TryFrom`/`TryInto` 的方法返回 `Result` 类型。这允许方法返回 `Err` 而不是直接 panic。
+
+同时，`TryFrom`/`TryInto` 都有一个关联类型 `Error`，这允许每个实现该 trait 的类型自己定义自己的错误类型（`Self::Error`）。
+
+```rust
+pub trait TryFrom<T>: Sized {
+    type Error;
+    fn try_from(value: T) -> Result<Self, Self::Error>;
+}
+
+pub trait TryInto<T>: Sized {
+    type Error;
+    fn try_into(self) -> Result<T, Self::Error>;
+}
+```
 
 ### Trait 用法
 
