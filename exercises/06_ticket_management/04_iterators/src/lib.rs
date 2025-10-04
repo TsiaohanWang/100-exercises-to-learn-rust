@@ -30,12 +30,20 @@ pub enum Status {
 impl TicketStore {
     pub fn new() -> Self {
         Self {
-            tickets: Vec::new(),
+            tickets: Vec::new()
         }
     }
-
     pub fn add_ticket(&mut self, ticket: Ticket) {
         self.tickets.push(ticket);
+    }
+}
+
+
+impl IntoIterator for TicketStore {
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    type Item = Ticket;
+    fn into_iter(self) -> Self::IntoIter {
+        self.tickets.into_iter()
     }
 }
 

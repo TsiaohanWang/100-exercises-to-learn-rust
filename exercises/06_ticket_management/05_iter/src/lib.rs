@@ -36,6 +36,12 @@ impl TicketStore {
     }
 }
 
+impl IntoIterator for TicketStore {
+    type Item = Ticket;
+    type IntoIter = ;
+    fn 
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
