@@ -34,12 +34,10 @@ impl TicketStore {
     pub fn add_ticket(&mut self, ticket: Ticket) {
         self.tickets.push(ticket);
     }
-}
 
-impl IntoIterator for TicketStore {
-    type Item = Ticket;
-    type IntoIter = ;
-    fn 
+    pub fn iter(&self) -> std::slice::Iter<Ticket>{
+        self.tickets.iter()
+    }
 }
 
 #[cfg(test)]

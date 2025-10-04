@@ -1741,86 +1741,6 @@ let row = vec![
 > 
 > 如果你大致知道你将在一个 `Vec` 中存储多少个元素，你可以使用 `Vec::with_capacity` 方法来预先分配足够的内存。这样避免了调整大小时的操作开销。
 
-### 迭代器
-
-#### 语法糖展开与 Iterator trait
-
-Rust 允许我们使用 `for` 循环来遍历集合，既可以是 range（例如 `0..5`）又可以是数组或 `Vec`。事实上这是一种语法糖，背后离不开迭代器。
-
-每当你在 Rust 中编写一个 `for` 循环，编译器会将其脱糖（desugar，即语法糖展开）为以下代码：
-
-```rust
-// let v = vec![1, 2, 3];
-// for n in v {
-//     println!("{}", n);
-// }
-
-// 对语法糖展开：
-
-let mut iter = IntoIterator::into_iter(v); // v.into_iter() 也可以
-loop {
-    match iter.next() {
-        Some(n) => {
-            println!("{}", n);
-        }
-        None => break,
-    }
-}
-```
-
-代码片段中的 `next` 方法来自 `Iterator` trait。该 trait 为那些能产生一个值序列的类型提供了一个共享的接口：
-
-```rust
-trait Iterator {
-    type Item; // Item 关联类型指定了迭代器产生的值的类型
-    fn next(&mut self) -> Option<Self::Item>; // next 返回序列中的下一个值
-                                              // 如果还有一个值可以返回，它就返回 Some(value)
-                                              // 如果没有了，它就返回 None
-}
-```
-
-> [!WARNING]
-> 当 `next` 返回 `None` 时，并不能保证迭代器就此耗尽。只有当迭代器实现了（更严格的）`FusedIterator` trait 时，这一点才能得到保证。
-
-#### IntoIterator trait
-
-并非所有类型都实现了 `Iterator`，但可以利用 `IntoIterator` trait 将许多类型转换成一个实现了 `Iterator` 的类型。`IntoIterator` 的作用是接收一个集合类型，然后生产出一个对应的迭代器。
-
-```rust
-trait IntoIterator {
-    type Item;
-    type IntoIter: Iterator<Item = Self::Item>;
-    fn into_iter(self) -> Self::IntoIter; // 注意 into_iter 方法的签名是 (self) 而不是 (&self)
-                                          // 这意味着它会获取调用者（那个集合）的所有权
-}
-```
-
-`into_iter` 方法会消耗（consume）原始值，并返回一个遍历其元素的迭代器。一个类型只能有一个 `IntoIterator` 的实现：因为对于 `for` 循环应该脱糖成什么样不能有任何歧义。每个实现了 `Iterator` 的类型也自动实现了 `IntoIterator`。它们只是在 `into_iter` 方法中返回它们自己。
-
-与 `into_iter` 方法不同的是，`iter` 方法返回的是一个遍历集合元素引用的迭代器，这样不会消耗掉原集合的所有权。
-
-```Rust
-let numbers: Vec<u32> = vec![1, 2];
-// 这里 n 的类型是 &u32
-for n in numbers.iter() {
-    // ...
-}
-// 在这之后依然可以使用 numbers
-```
-
-也可以直接对集合的引用实现 `IntoIterator`，这样也可以不消耗集合的所有权。
-
-```rust
-let numbers: Vec<u32> = vec![1, 2];
-// 这里 n 的类型是 &u32。我们不必显式地调用 iter
-// 在 for 循环中只使用 &numbers 就足够了
-for n in &numbers {
-    // ...
-}
-```
-
-使用迭代器进行遍历有一个很好的附带效应：从设计上讲，你不可能越界。这使得 Rust 可以在生成的机器码中移除边界检查，从而让迭代更快。尽管编译器有时可以在手动使用索引时会移除边界检查。但总的来说，在可能的情况下优先使用迭代而不是索引进行迭代。
-
 ### 字符串 string
 
 Rust 的核心语言中只有一种字符串类型，字符串 slice `str`，它通常以被借用的形式（`&str`）出现。`String` 类型由 Rust 标准库提供，而不是编入核心语言，它是一种可增长、可变、可拥有、UTF-8 编码的字符串类型。
@@ -2861,3 +2781,366 @@ Rust 中的 trait 很强大，但不要滥用。请记住以下几条准则：
 - 只要合理，就为你的自定义类型实现标准库中的 trait（如 `Debug`、`PartialEq` 等）。这会让你的类型更符合 Rust 的语言习惯，也更易于使用，从而解锁标准库和生态系统中其他 crate 提供的许多功能。
 - 如果你需要第三方 crate 在其生态系统内所解锁的功能，就为你的类型实现这些 crate 中定义的 trait。
 - 警惕不要仅仅为了在测试中使用模拟对象（mock）而将代码泛型化。这种方法的维护成本可能很高，通常采用不同的测试策略会更好。
+
+### 生命周期
+
+为了保证内存安全，Rust 为引用引入了生命周期的概念，确保任何一个引用的有效期都不能超过其引用的数据本身的存在时间。
+
+生命周期（Lifetimes）是 Rust 编译器用来追踪一个引用（无论是可变的还是不可变的）有效期多长的标签。一个引用的生命周期受到它所引用的值的作用域（scope）的限制。生命周期其实是另一类泛型。不同于确保类型有期望的行为，生命周期用于保证引用在我们需要的整个期间内都是有效的。
+
+大部分时候生命周期是隐含并可以推断的，正如大部分时候类型也是可以推断的一样。类似于当因为有多种可能类型的时候必须注明类型，也会出现引用的生命周期以一些不同方式相关联的情况，所以 Rust 需要我们使用泛型生命周期参数来注明它们的关系，这样就能确保运行时实际使用的引用绝对是有效的，使得引用不会在其引用的值被丢弃后仍被使用，以避免悬垂指针（dangling pointers）和释放后使用（use-after-free）的 bug。
+
+```rust
+// 以下程序会在编译时报错
+fn main() {
+    let string1 = String::from("abcd");
+    let string2 = "xyz";
+
+    let result = longest(string1.as_str(), string2); // 调用 longest 函数，返回较长的那个字符串 slice
+    println!("The longest string is {result}");
+}
+
+fn longest(x: &str, y: &str) -> &str { // 编译器在此处报错：返回值需要一个泛型生命周期参数
+    if x.len() > y.len() { x } else { y } // 因为编译器不知道将返回的引用是指向 x 还是 y
+}
+// 当我们定义这个函数的时候，并不知道传递给函数的具体值，所以也不知道到底是 if 还是 else 会被执行
+// 我们也不知道传入的引用的具体生命周期，所以也就不能通过观察作用域来确定返回的引用是否总是有效
+// 借用检查器自身同样也无法确定，因为它不知道 x 和 y 的生命周期是如何与返回值的生命周期相关联的
+```
+
+#### 函数中的生命周期注解
+
+生命周期注解并不改变任何引用的生命周期的长短。相反它们描述了多个引用生命周期相互的关系，而不影响其生命周期。
+
+生命周期参数名称必须以撇号（`'`）开头，其名称通常全是小写，类似于泛型其名称非常短。生命周期参数注解位于引用的 `&` 之后，并有一个空格来将引用类型与生命周期注解分隔开。
+
+```rust
+&i32        // 引用
+&'a i32     // 带有显式生命周期的引用
+&'a mut i32 // 带有显式生命周期的可变引用
+```
+
+单个的生命周期注解本身没有多少意义，因为生命周期注解告诉 Rust 多个引用的泛型生命周期参数如何相互联系的。为了在函数签名中使用生命周期注解，需要在函数名和参数列表间的尖括号中声明泛型生命周期参数，就像泛型类型参数一样。这些注解只出现在函数签名中，而不存在于函数体中的任何代码中。
+
+```rust
+fn longest<'a>(x: &'a str, y: &'a str) -> &'a str { // <'a> 指定了签名中所有引用必须具有相同生命周期 'a
+    if x.len() > y.len() { x } else { y }
+}
+// 函数签名表明：对于某些生命周期 'a
+// 函数会获取两个参数 x 和 y，它们都是与生命周期 'a 的存在至少一样长的字符串 slice
+// 同时会返回一个与生命周期 'a 的存在至少一样长的字符串 slice
+// 换句话说，函数返回的引用的生命周期与函数参数所引用的值的生命周期的较小者一致
+
+// 使用生命周期注解后，虽然编译器仍不知道 x 和 y 具体会存在多久
+// 但是它知道一定有某个可以被 'a 替代的作用域会满足函数签名
+// 当具体的引用被传递给该函数时，被 'a 所替代的具体生命周期是 x 的作用域与 y 的作用域相重叠的那部分
+```
+
+要注意，这里使用生命周期注解后的 `longest` 函数返回的生命周期是传入参数中生命周期较短者（即生命周期重叠部分）。这就是为什么下面会编译错误：
+
+```rust
+// 以下程序会在编译时报错
+fn main() {
+    let string1 = String::from("long string is long");
+    let result;
+    {
+        let string2 = String::from("xyz");
+        result = longest(string1.as_str(), string2.as_str()); // 函数返回的引用虽然直观来看是 string1 的引用
+                                                              // 但是编译器通过生命周期参数得出：
+                                                              // 返回的引用的生命周期应该与较小者保持一致，即 string2
+    }
+    println!("The longest string is {result}"); // 为了保证 println! 中的 result 有效
+                                                // string1 和 string2 到这里也必须是有效的
+                                                // 但是 string2 的作用域实际上已经结束了
+}
+```
+
+如果函数返回一个引用，返回值的生命周期参数需要与一个参数的生命周期参数相匹配。如果返回的引用没有指向任何一个参数，那么唯一的可能就是它指向一个函数内部创建的值，这会导致出现 Rust 不允许的悬垂引用。
+
+```rust
+// 以下程序会在编译时报错
+fn longest<'a>(x: &str, y: &str) -> &'a str { // 签名中返回值的生命周期没有指向任何一个参数
+    let result = String::from("really long string");
+    result.as_str() // 返回值指向的是函数内部创建的值，这会产生悬垂引用
+}
+```
+
+#### 结构体中的生命周期注解
+
+如果一个结构体持有引用，那么它的定义必须包含一个生命周期参数，来确保结构体实例不会比它所引用的数据活得更长。同时需要为结构体定义中的每一个引用添加生命周期注解。
+
+类似于泛型参数类型，必须在结构体名称后面的尖括号中声明泛型生命周期参数，以便在结构体定义中使用生命周期参数。
+
+```rust
+struct ImportantExcerpt<'a> { // 注解意味着 ImportantExcerpt 的实例不能比其 part 字段中的引用存在更久
+    part: &'a str,
+}
+
+fn main() {
+    let novel = String::from("Call me Ishmael. Some years ago...");
+    let first_sentence = novel.split('.').next().unwrap();
+    let i = ImportantExcerpt {
+        part: first_sentence,
+    };
+}
+```
+
+#### 生命周期省略（Lifetime Elision）
+
+Rust 有一套称为生命周期省略规则（lifetime elision rules）的规则，它允许你在许多情况下省略显式的生命周期注解。借用检查器在这些情况下就能推断出生命周期而不再强制程序员显式的增加注解。这并不是需要程序员遵守的规则；这些规则是一系列特定的场景，此时编译器会考虑，如果代码符合这些场景，就无需明确指定生命周期。
+
+函数或方法的参数的生命周期被称为输入生命周期（input lifetimes），而返回值的生命周期被称为输出生命周期（output lifetimes）。
+
+编译器采用三条规则来判断引用何时不需要明确的注解。第一条规则适用于输入生命周期，后两条规则适用于输出生命周期。如果编译器检查完这三条规则后仍然存在没有计算出生命周期的引用，编译器将会停止并生成错误，它不会猜测剩余引用的生命周期应该是什么。编译器会在可以通过增加生命周期注解来解决错误问题的地方给出一个错误提示，而不是进行推断或猜测。以下这些规则适用于 `fn` 定义以及 `impl` 块。
+
+1. 第一条规则：编译器为函数或方法的每一个引用参数都分配一个生命周期参数，即函数或方法有几个引用参数就有几个生命周期参数。例如 `fn foo<'a, 'b>(x: &'a i32, y: &'b i32)`。
+2. 第二条规则：如果只有一个输入生命周期参数，那么将它赋予给所有输出生命周期参数。例如 `fn foo<'a>(x: &'a i32) -> &'a i32`。
+3. 第三条规则：如果方法有多个输入生命周期参数，并且其中一个参数是 `&self` 或 `&mut self` 说明这是方法（而非不是方法的关联函数），那么所有输出生命周期参数被赋予 `self` 的生命周期。
+
+```rust
+// 第一个例子
+fn first_word(s: &str) -> &str {
+// ↓ 应用第一条规则
+fn first_word<'a>(s: &'a str) -> &str {
+// ↓ 应用第二条规则
+fn first_word<'a>(s: &'a str) -> &'a str {
+
+// 第二个例子
+fn longest(x: &str, y: &str) -> &str {
+// ↓ 应用第一条规则
+fn longest(x: &'a str, y: &'b str) -> &str {
+// 这里返回的引用的生命周期没有指向任何一个参数，因此无法通过编译
+// 
+```
+
+#### 方法中的生命周期
+
+当为带有生命周期的结构体实现方法时，其语法依然类似泛型类型参数的语法。（实现方法时）结构体字段的生命周期必须总是在 `impl` 关键字之后声明并在结构体名称之后被使用，因为这些生命周期是结构体类型的一部分。
+
+```rust
+struct ImportantExcerpt<'a> {
+    part: &'a str,
+}
+
+impl<'a> ImportantExcerpt<'a> { // impl 之后和类型名称之后的生命周期参数是必要的
+    fn level(&self) -> i32 { // 由第一条省略规则，这里不需要显式标注 &self 的生命周期
+        3
+    }
+
+    fn announce_and_return_part(&self, announcement: &str) -> &str { // 由第一条、第三条省略规则
+                                                                     // 返回值类型被赋予 &self 的生命周期
+        println!("Attention please: {announcement}");
+        self.part
+    }
+}
+```
+
+#### 静态生命周期
+
+有一种特殊的生命周期：`'static`，其生命周期能够存活于整个程序期间。所有的字符串字面值都拥有 `'static` 生命周期。
+
+```rust
+let s: &'static str = "I have a static lifetime.";
+// 这个字符串的文本被直接储存在程序的二进制文件中而这个文件总是可用的
+```
+
+可能在错误信息的帮助文本中会出现使用 `'static` 的建议，这总是因为出现了你尝试创建悬垂引用或者可用的生命周期不匹配的问题。这类问题的解决方案往往并不是直接指定静态生命周期。
+
+## 函数式语言特性
+
+
+### 迭代器
+
+#### 语法糖展开与 Iterator trait
+
+Rust 允许我们使用 `for` 循环来遍历集合，既可以是 range（例如 `0..5`）又可以是数组或 `Vec`。事实上这是一种语法糖，背后离不开迭代器。
+
+每当你在 Rust 中编写一个 `for` 循环，编译器会将其脱糖（desugar，即语法糖展开）为以下代码：
+
+```rust
+// let v = vec![1, 2, 3];
+// for n in v {
+//     println!("{}", n);
+// }
+
+// 对语法糖展开：
+
+let mut iter = IntoIterator::into_iter(v); // v.into_iter() 也可以
+loop {
+    match iter.next() {
+        Some(n) => {
+            println!("{}", n);
+        }
+        None => break,
+    }
+}
+```
+
+代码片段中的 `next` 方法来自 `Iterator` trait。该 trait 为那些能产生一个值序列的类型提供了一个共享的接口：
+
+```rust
+trait Iterator {
+    type Item; // Item 关联类型指定了迭代器产生的值的类型
+    fn next(&mut self) -> Option<Self::Item>; // next 返回序列中的下一个值
+                                              // 如果还有一个值可以返回，它就返回 Some(value)
+                                              // 如果没有了，它就返回 None
+}
+```
+
+> [!WARNING]
+> 当 `next` 返回 `None` 时，并不能保证迭代器就此耗尽。只有当迭代器实现了（更严格的）`FusedIterator` trait 时，这一点才能得到保证。
+
+#### IntoIterator trait
+
+并非所有类型都实现了 `Iterator`，但可以利用 `IntoIterator` trait 将许多类型转换成一个实现了 `Iterator` 的类型。`IntoIterator` 的作用是接收一个集合类型，然后生产出一个对应的迭代器。
+
+```rust
+trait IntoIterator {
+    type Item;
+    type IntoIter: Iterator<Item = Self::Item>;
+    fn into_iter(self) -> Self::IntoIter; // 注意 into_iter 方法的签名是 (self) 而不是 (&self)
+                                          // 这意味着它会获取调用者（那个集合）的所有权
+}
+```
+
+`into_iter` 方法会消耗（consume）原始值，并返回一个遍历其元素的迭代器。一个类型只能有一个 `IntoIterator` 的实现：因为对于 `for` 循环应该脱糖成什么样不能有任何歧义。每个实现了 `Iterator` 的类型也自动实现了 `IntoIterator`。它们只是在 `into_iter` 方法中返回它们自己。
+
+与 `into_iter` 方法不同的是，`iter` 方法返回的是一个遍历集合元素引用的迭代器，这样不会消耗掉原集合的所有权。
+
+```Rust
+let numbers: Vec<u32> = vec![1, 2];
+// 这里 n 的类型是 &u32
+for n in numbers.iter() {
+    // ...
+}
+// 在这之后依然可以使用 numbers
+```
+
+也可以直接对集合的引用实现 `IntoIterator`，这样也可以不消耗集合的所有权。
+
+```rust
+let numbers: Vec<u32> = vec![1, 2];
+// 这里 n 的类型是 &u32。我们不必显式地调用 iter
+// 在 for 循环中只使用 &numbers 就足够了
+for n in &numbers {
+    // ...
+}
+```
+
+使用迭代器进行遍历有一个很好的附带效应：从设计上讲，你不可能越界。这使得 Rust 可以在生成的机器码中移除边界检查，从而让迭代更快。尽管编译器有时可以在手动使用索引时会移除边界检查。但总的来说，在可能的情况下优先使用迭代而不是索引进行迭代。
+
+#### 组合子（combinators）
+
+迭代器的功能远不止用于 `for` 循环。标准库中有大量的方法，允许我们以各种方式转换、过滤和组合迭代器。它们接收一个迭代器，然后返回一个新的、被改造过的迭代器。它们本身并不立即执行任何操作，只是在原始迭代器上包装了一层新的逻辑。真正的计算和遍历只会在你“消耗”这个迭代器时发生（比如在 `for` 循环中，或者调用 `collect`、`sum`、`next` 等方法时）。因为它们返回的还是迭代器，所以你可以像流水线一样将它们一个接一个地串联起来，构建出复杂而清晰的数据处理逻辑。
+
+- `map`
+- - 将一个函数（闭包）应用于迭代器中的每一个元素，将每个元素转换为一个新的元素。输入和输出的类型可以不同。
+- `filter`
+- - 遍历迭代器中的每个元素，只保留那些让闭包返回 `true` 的元素。它不会改变元素的类型。
+- `filter_map`
+- - 把 `filter` 和 `map` 的功能合二为一。将一个闭包应用于每个元素，该闭包返回一个 `Option`。如果返回 `Some(value)`，那么 `value` 会被保留在新的迭代器中；如果返回 `None`，该元素就被丢弃。
+- `cloned`
+- - 将一个 `Iterator<Item = &T>` 转换为一个 `Iterator<Item = T>`，通过对每个引用调用 `.clone()` 方法来实现。前提是 `T` 必须实现 `Clone` Trait。
+- `enumerate`
+- - 将一个迭代器转换为一个新的迭代器，其中每个元素都变成一个 `(索引, 原始值)` 的元组。索引从 `0` 开始。
+- `skip`
+- - 跳过前 `n` 个元素，从第 `n+1` 个开始迭代。
+- `take`
+- - 只取前 `n` 个元素，迭代到第 `n` 个元素后就立刻结束（即使后面还有元素）。`take` 对处理无限迭代器特别有用。
+- `chain`
+- - 将另一个迭代器连接到当前迭代器的末尾，相当于将两个迭代器合并成一个。两个迭代器的元素类型必须相同。
+
+这些方法被称为组合子（combinators）。它们通常被串联在一起，以一种简洁易读的方式创建复杂的转换。例如：
+
+```rust
+let numbers = vec![1, 2, 3, 4, 5];
+// 计算偶数的平方和
+let outcome: u32 = numbers.iter() // 返回一个迭代器
+    .filter(|&n| n % 2 == 0) // 只保留偶数
+    .map(|&n| n * n) // 将 n 转换为 n * n
+    .sum(); // 求和
+```
+
+### 闭包
+
+闭包是可以保存在变量中或作为参数传递给其他函数的匿名函数（anonymous functions），即没有使用我们熟悉的 `fn` 语法定义的函数。
+
+使用 `|args| body` 的语法来定义一个闭包，其中 `args` 是参数（一个或多个），`body` 是函数体（可以是一个代码块或单个表达式）。可以将闭包保存在变量中，然后像使用函数名一样，使用变量名和括号来调用该闭包。
+
+```rust
+// 一个将其参数加 1 的匿名函数
+let add_one = |x| x + 1;
+// 也可以用代码块来写：
+let add_one = |x| { x + 1 };
+// 闭包可以接受多个参数：
+let add = |x, y| x + y;
+let sum = add(1, 2); // 调用闭包
+```
+
+闭包通常不要求像 `fn` 函数那样对参数和返回值进行类型注解。函数需要类型注解是因为这些类型是暴露给用户的显式接口的一部分。严格定义这些接口对于确保所有人对函数使用和返回值的类型达成一致理解非常重要。闭包通常较短，并且只与特定的上下文相关，而不是适用于任意情境。
+
+```rust
+fn  add_one_v1   (x: u32) -> u32 { x + 1 }  // 函数需要类型注解
+let add_one_v2 = |x: u32| -> u32 { x + 1 }; // 最完整形式的闭包
+let add_one_v3 = |x|             { x + 1 }; // 省略掉类型注解的闭包
+let add_one_v4 = |x|               x + 1  ; // 省略掉花括号
+```
+
+如果闭包没有显式的类型注解，编译器会根据情境推断类型，并将其锁定进这个闭包中。
+
+```rust
+let example_closure = |x| x; // 一个无类型注解的闭包，它仅仅返回作为参数接收到的值。
+
+let s = example_closure(String::from("hello")); // String 作为参数传入，编译器将参数 x 绑定 String 类型
+let n = example_closure(5); // 编译错误。应该向闭包传入 String 参数而不是整型参数
+```
+
+#### 捕获环境中的值
+
+不同于函数，闭包允许捕获其被定义时所在作用域中的值。
+
+闭包可以通过三种方式捕获其环境中的值，它们直接对应到函数获取参数的三种方式：不可变借用、可变借用和获取所有权。闭包将根据函数体中对捕获值的操作来决定使用哪种方式。
+
+```rust
+let x = 42;
+let add_x = |y| x + y; // 传入一个参数 y
+let sum = add_x(1); // 捕获了当前作用域中的 x，然后 1 传入参数 y
+```
+
+```rust
+fn main() {
+    let list = vec![1, 2, 3];
+    println!("Before defining closure: {list:?}");
+
+    let only_borrows = || println!("From closure: {list:?}"); // 将闭包存储到变量中
+
+    println!("Before calling closure: {list:?}");
+    only_borrows(); // 调用闭包
+    println!("After calling closure: {list:?}");
+}
+// 输出：
+// Before defining closure: [1, 2, 3]
+// Before calling closure: [1, 2, 3]
+// From closure: [1, 2, 3]
+// After calling closure: [1, 2, 3]
+```
+
+```rust
+fn main() {
+    let mut list = vec![1, 2, 3];
+    println!("Before defining closure: {list:?}");
+
+    let mut borrows_mutably = || list.push(7);
+
+    borrows_mutably();
+    println!("After calling closure: {list:?}");
+}
+```
+
+> [!INFO] 闭包作为方法的参数
+> 标准库中，在 `Option<T>` 上定义了一个 `unwrap_or_else` 方法。它接受一个无参闭包作为参数，该闭包返回一个 `T` 类型的值（要与 `Option<T>` 的 `Some` 变体中存储的值类型相同）。
+> 
+> - 如果 `Option<T>` 是 `Some` 变体，则 `unwrap_or_else` 返回 `Some` 中的值；
+> - 如果 `Option<T>` 是 `None` 变体，则 `unwrap_or_else` 调用闭包并返回闭包的返回值。
+> 
+> 例如
