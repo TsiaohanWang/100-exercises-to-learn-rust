@@ -1,28 +1,26 @@
-use std::sync::mpsc;
-use std::thread;
-use std::time::Duration;
+use std::ops::Deref;
+
+struct MyBox<T>(T); // 创建自定义类型，它包含一个内部值
+
+impl<T> MyBox<T> {
+    fn new(x: T) -> MyBox<T> { // 定义 new 方法
+        MyBox(x)
+    }
+}
+
+// impl<T> Deref for MyBox<T> { // 实现 Deref
+//     type Target = T; // 转换目标是 T 类型
+// 
+//     fn deref(&self) -> &Self::Target {
+//         &self.0 // 返回元组结构体的唯一元素的引用
+//     }
+// }
+
+fn hello(name: &str) {
+    println!("Hello, {name}!");
+}
 
 fn main() {
-    let (tx, rx) = mpsc::channel();
-
-    let send = thread::spawn(move || {
-        let vals = vec![
-            String::from("hi"),
-            String::from("from"),
-            String::from("the"),
-            String::from("thread"),
-        ];
-
-        for val in vals {
-            println!("Send: {val}");
-            tx.send(val).unwrap();
-            thread::sleep(Duration::from_secs_f64(0.5));
-        }
-    });
-send.join().unwrap();
-    loop {
-        let receive = rx.recv().unwrap();
-    println!("Receive: {receive}");
-    }
-    
+    let m = MyBox::new(String::from("Rust"));
+    hello(&(*m)[..]); // 这里 &m 在底层被转换为什么？
 }

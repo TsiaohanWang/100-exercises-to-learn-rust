@@ -2387,6 +2387,11 @@ pub trait Deref {
 - `&T` 类型的值会被强制转换为 `&U` 类型的值。
 - `T` 会隐式地实现 `U` 类型中所有接收 `&self` 作为参数的方法（即可以在 `&T` 上调用所有定义在 `U` 上的、以 `&self` 作为输入的方法）。
 
+> [!INFO] 第二条转换在可变引用中的情况
+> - 当 `T: DerefMut<Target = U>` 时从 `&mut T` 转换到 `&mut U`。（`DerefMut` 将在智能指针部分详细介绍）
+> - 当 `T: Deref<Target = U>` 时从 `&mut T` 到 `&U`。
+> - - 这表明 Rust 可能将可变引用强转为不可变引用。但是反过来是不可能的。
+
 `String` 实现了 `Deref`，其 `Target` 为 `str`。得益于这个实现和解引用强制转换，`&String` 在需要时会被自动转换为 `&str`。
 
 ```rust
@@ -2401,7 +2406,8 @@ impl Deref for String {
 
 例如，Rust 标准库为 `str`（字符串切片）类型定义了方法 `trim()`，其用于移除首尾空白字符。但是我们可以直接在 `&String` 类型实例上调用它，这是因为以引用的方式使用 `String`（即 `&String`）并调用一个它自身没有但 `str` 拥有的方法时，Rust 会自动将 `&String` 转换为 `&str`，然后调用相应的方法。
 
-解引用强制转换是一个强大的特性，但它也可能导致混淆。因此不要滥用解引用强制转换。关于解引用强制转换有更安全的用例：智能指针。
+> [!TIP]
+> 解引用强制转换是一个强大的特性，但它也可能导致混淆。因此不要滥用解引用强制转换。关于解引用强制转换更详细的介绍在智能指针部分。
 
 ### Sized trait
 
@@ -2644,7 +2650,7 @@ struct MyStruct {
 
 ### Drop trait
 
-当变量离开其作用域时，Rust 会自动隐式调用其析构函数（destructors）`std::mem::drop`，即：
+当变量离开其作用域时，Rust 会自动隐式调用其析构函数（destructors）`drop`，即：
 
 - 回收该类型所占用的内存（即 `std::mem::size_of` 字节）。
 - 清理该值可能管理的所有额外资源（例如 `String` 的堆缓冲区）。
@@ -2656,6 +2662,8 @@ pub trait Drop {
     fn drop(&mut self);
 }
 ```
+
+Rust 不允许我们显式调用 `Drop` trait 的 `drop` 方法。因为 Rust 仍然会在 `main` 的结尾对值自动调用 `drop`，这会导致一个 double free 错误，因为 Rust 会尝试清理相同的值两次。但是可以使用 `std::mem::drop` 函数。
 
 > [!INFO] `Drop` trait 与 `Copy` trait
 > 如果一个类型管理着超出其在内存中所占用的 `std::mem::size_of` 字节的额外资源，那么它就不能实现 `Copy` trait。编译器是如何知道一个类型是否管理着额外资源的呢？答案是通过 `Drop` trait 的实现。
@@ -2674,6 +2682,9 @@ pub trait Drop {
 > // 编译会报错，因为MyType 实现了 Drop，即便方法体是空的
 > // 编译器会判定 MyType 附带有额外资源无法实现 Copy
 > ```
+
+> [!TIP]
+> `Drop` trait 在智能指针中很重要，其允许我们在值要离开作用域时自定义要执行的操作。在实现智能指针时几乎总会用到 `Drop` trait。例如当 `Box<T>` 被丢弃时会释放 box 指向的堆空间。
 
 ### Error trait、source 方法与 ? 运算符
 
@@ -3398,9 +3409,132 @@ fn main() {
 
 `Deref` trait 允许智能指针结构体实例表现的像引用一样，这样就可以编写既用于引用、又用于智能指针的代码。`Drop` trait 允许我们自定义当智能指针离开作用域时运行的代码。
 
-#### 使用 Deref Trait 将智能指针当作常规引用处理
+#### 使用 Deref trait 将智能指针当作常规引用处理
 
+`Deref` trait 重载不可变引用的 `*` 运算符。`*` 是解引用运算符，必须使用解引用运算符追踪引用所指向的值。当它作用于一个实现了 `Deref` Trait 的类型实例 `m` 时，它是一个语法糖，等同于 `*(m.deref())`。
 
+```rust
+fn main() {
+    let x = 5;
+    let y = Box::new(x); // 将 y 设置为一个指向 x 值拷贝的 Box<T> 实例
+
+    assert_eq!(5, x);
+    assert_eq!(5, *y); // 使用解引用运算符实际上在底层进行了操作：*(y.deref())
+                       // 即先调用 deref 方法再进行普通解引用
+}
+```
+
+当所涉及到的类型定义了 `Deref` trait，Rust 会分析这些类型并使用任意多次 `deref` 调用以获得匹配参数的类型。这些解析都发生在编译时，所以利用解引用强制转换并没有运行时开销。
+
+```rust
+use std::ops::Deref;
+
+struct MyBox<T>(T); // 创建自定义类型，它包含一个内部值
+
+impl<T> MyBox<T> {
+    fn new(x: T) -> MyBox<T> { // 定义 new 方法
+        MyBox(x)
+    }
+}
+
+impl<T> Deref for MyBox<T> { // 实现 Deref
+    type Target = T; // 转换目标是 T 类型
+
+    fn deref(&self) -> &Self::Target {
+        &self.0 // 返回结构体元组的唯一元素的引用
+    }
+}
+
+fn hello(name: &str) {
+    println!("Hello, {name}!");
+}
+
+fn main() {
+    let m = MyBox::new(String::from("Rust"));
+    hello(&m);
+    // 先执行了一次隐式的 deref 调用，将 &MyBox<String> 转换成了 &String
+    // 在 &String 的基础上又执行了一次隐式的 deref 调用，将其转换成了 &str
+}
+// 只要 MyBox 实现了 Deref，那么 hello(&m) 更完整的形式应该是 hello(&(*m)[..])
+// *m 实际上在底层进行了操作：*(y.deref())，即先调用 deref 方法再进行普通解引用
+// 正是因为解引用强制转换的存在，我们可以省去使用 * 运算符的步骤
+```
+
+类似于使用 `Deref` trait 重载不可变引用的 `*` 运算符，Rust 提供了 `DerefMut` trait 用于重载可变引用的 `*` 运算符。
+
+Rust 在发现类型和 trait 实现满足三种情况时会进行解引用强制转换：
+
+- 当 `T: Deref<Target=U>` 时从 `&T` 到 `&U`。
+- 当 `T: DerefMut<Target=U>` 时从 `&mut T` 到 `&mut U`。
+- 当 `T: Deref<Target=U>` 时从 `&mut T` 到 `&U`。
+
+上述第二条相当于第一条的“可变引用”版本。
+
+#### 使用 Drop trait 自定义清理与手动丢弃数据
+
+指定在值离开作用域时应该执行的代码的方式是实现 `Drop` trait。`Drop` trait 包含在 prelude 中，因此无需将其引入作用域。
+
+当实例离开作用域 Rust 会自动调用 `drop`，并调用我们指定的代码。同一作用域内的变量以被创建时相反的顺序被丢弃。
+
+```rust
+struct CustomSmartPointer {
+    data: String,
+}
+
+impl Drop for CustomSmartPointer {
+    fn drop(&mut self) {
+        println!("Dropping CustomSmartPointer with data `{}`!", self.data);
+    }
+}
+
+fn main() {
+    let c = CustomSmartPointer {
+        data: String::from("my stuff"),
+    };
+    let d = CustomSmartPointer {
+        data: String::from("other stuff"),
+    };
+    println!("CustomSmartPointers created.");
+}
+// 输出：
+// CustomSmartPointers created.
+// Dropping CustomSmartPointer with data `other stuff`!
+// Dropping CustomSmartPointer with data `my stuff`!    // 丢弃顺序与创建顺序相反
+```
+
+Rust 不允许我们禁用当值离开作用域时自动插入的 `drop`，也不允许我们主动调用 `Drop` trait 的 `drop` 方法。如果希望在作用域结束之前就强制释放变量，我们应该使用的是 `std::mem::drop` 函数。
+
+> [!INFO] std::mem::drop 函数
+> `std::mem::drop` 是标准库提供的一个普通函数，它的实现就是一个空的函数体。它的唯一作用就是接收一个值的所有权，然后什么也不做。因为函数在执行完毕后，它所拥有的参数会被立即销毁，所以这个过程有效地提前结束了一个值的生命周期。
+>
+> 只有在想主动、显式地在某个时间点放弃一个值的所有权时，才会去调用它。
+>
+> `std::mem::drop` 函数不同于 `Drop` trait 中的 `drop` 方法。该函数位于 prelude 中，因此直接使用 `drop(x)` 即可。
+
+```rust
+struct CustomSmartPointer {
+    data: String,
+}
+
+impl Drop for CustomSmartPointer {
+    fn drop(&mut self) {
+        println!("Dropping CustomSmartPointer with data `{}`!", self.data);
+    }
+}
+
+fn main() {
+    let c = CustomSmartPointer {
+        data: String::from("some data"),
+    };
+    println!("CustomSmartPointer created.");
+    drop(c);
+    println!("CustomSmartPointer dropped before the end of main.");
+}
+// 输出：
+// CustomSmartPointer created.
+// Dropping CustomSmartPointer with data `some data`!
+// CustomSmartPointer dropped before the end of main.
+```
 
 ## 线程与并发
 
@@ -3597,7 +3731,6 @@ thread::spawn(move || {
         String::from("from"),
         String::from("the"),
         String::from("thread"),
-    ];
 
     for val in vals {
         tx1.send(val).unwrap(); // 使用克隆得到的新发送端向 rx 传送数据
