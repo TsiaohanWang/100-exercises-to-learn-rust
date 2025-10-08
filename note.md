@@ -3536,6 +3536,54 @@ fn main() {
 // CustomSmartPointer dropped before the end of main.
 ```
 
+### Rc<T> 引用计数智能指针
+
+为了启用多所有权（单个值可有多个所有者）需要显式地使用 Rust 类型 `Rc<T>`，其为引用计数（reference counting）的缩写。引用计数意味着记录一个值的引用数量来知晓这个值是否仍在被使用。如果某个值有零个引用，就代表没有任何有效引用并可以被清理。
+
+`Rc<T>` 用于当我们希望在堆上分配一些内存供程序的多个部分读取，而且无法在编译时确定程序的哪一部分会最后结束使用它的时候。需要使用 `use` 语句将 `std::rc::Rc` 引入作用域，因为它不在 prelude 中。
+
+> [!WARNING]
+> 注意 `Rc<T>` 只能用于单线程场景。
+
+```rust
+enum List {
+    Cons(i32, Rc<List>),
+    Nil,
+}
+
+use crate::List::{Cons, Nil};
+use std::rc::Rc;
+
+fn main() {
+    let a = Rc::new(Cons(5, Rc::new(Cons(10, Rc::new(Nil)))));
+    let b = Cons(3, Rc::clone(&a)); // 调用 Rc::clone 函数并传递 a 中 Rc<List> 的引用作为参数
+    let c = Cons(4, Rc::clone(&a));
+}
+```
+
+`Rc::clone` 只会增加引用计数，这并不会像深拷贝那样花费多少时间。
+
+引用计数的值可以通过调用 `Rc::strong_count` 函数获得。
+
+```rust
+fn main() {
+    let a = Rc::new(Cons(5, Rc::new(Cons(10, Rc::new(Nil)))));
+    println!("count after creating a = {}", Rc::strong_count(&a));
+    let b = Cons(3, Rc::clone(&a));
+    println!("count after creating b = {}", Rc::strong_count(&a));
+    {
+        let c = Cons(4, Rc::clone(&a));
+        println!("count after creating c = {}", Rc::strong_count(&a));
+    } // c 离开作用域并被丢弃，引用计数减 1
+    println!("count after c goes out of scope = {}", Rc::strong_count(&a));
+} // b 离开作用域，然后是 a 离开作用域。此处计数会是 0，同时 Rc<List> 被完全清
+// 输出：
+// count after creating a = 1
+// count after creating b = 2
+// count after creating c = 3
+// count after c goes out of scope = 2
+```
+
 ## 线程与并发
 
 ### 线程

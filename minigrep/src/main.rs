@@ -1,26 +1,13 @@
-use std::ops::Deref;
-
-struct MyBox<T>(T); // 创建自定义类型，它包含一个内部值
-
-impl<T> MyBox<T> {
-    fn new(x: T) -> MyBox<T> { // 定义 new 方法
-        MyBox(x)
-    }
+enum List {
+    Cons(i32, Rc<List>),
+    Nil,
 }
 
-// impl<T> Deref for MyBox<T> { // 实现 Deref
-//     type Target = T; // 转换目标是 T 类型
-// 
-//     fn deref(&self) -> &Self::Target {
-//         &self.0 // 返回元组结构体的唯一元素的引用
-//     }
-// }
-
-fn hello(name: &str) {
-    println!("Hello, {name}!");
-}
+use crate::List::{Cons, Nil};
+use std::rc::Rc;
 
 fn main() {
-    let m = MyBox::new(String::from("Rust"));
-    hello(&(*m)[..]); // 这里 &m 在底层被转换为什么？
+    let a = Rc::new(Cons(5, Rc::new(Cons(10, Rc::new(Nil)))));
+    let b = Cons(3, Rc::clone(&a));
+    let c = Cons(4, Rc::clone(&a));
 }
