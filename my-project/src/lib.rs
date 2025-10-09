@@ -1,14 +1,11 @@
-mod MLDataStructure {
-    use std::{
-        ops::{Index, IndexMut},
-        vec,
-    };
+pub mod ml_data_structure {
+    use std::ops::{Index, IndexMut};
 
     #[derive(Debug, PartialEq, Clone)]
-    struct Vector(Vec<f64>);
+    pub struct Vector(Vec<f64>);
 
     #[derive(Debug, PartialEq, Clone)]
-    struct Matrix(Vec<Vec<f64>>);
+    pub struct Matrix(Vec<Vec<f64>>);
 
     pub trait MLDataStruct {}
 
@@ -39,6 +36,98 @@ mod MLDataStructure {
             &mut self.0[index]
         }
     }
+    // 为向量实现 Display
+    impl std::fmt::Display for Vector {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            
+        }
+    }
+    // 为矩阵实现 Display
+    impl std::fmt::Display for Matrix {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            
+        }
+    }
+    // Vec<f64>、Vec<f32>、Vec<i32>、Vec<i16>、Vec<u32>、Vec<u16> 可以转为向量
+    impl From<Vec<f64>> for Vector {
+        fn from(value: Vec<f64>) -> Self {
+            if value.is_empty() {
+                return Vector::new();
+            } else {
+                return Vector(value);
+            }
+        }
+    }
+    impl From<Vec<f32>> for Vector {
+        fn from(value: Vec<f32>) -> Self {
+            if value.is_empty() {
+                return Vector::new();
+            } else {
+                return Vector(
+                    value
+                        .iter()
+                        .map(|component| component.clone().into())
+                        .collect(),
+                );
+            }
+        }
+    }
+    impl From<Vec<i32>> for Vector {
+        fn from(value: Vec<i32>) -> Self {
+            if value.is_empty() {
+                return Vector::new();
+            } else {
+                return Vector(
+                    value
+                        .iter()
+                        .map(|component| component.clone().into())
+                        .collect(),
+                );
+            }
+        }
+    }
+    impl From<Vec<i16>> for Vector {
+        fn from(value: Vec<i16>) -> Self {
+            if value.is_empty() {
+                return Vector::new();
+            } else {
+                return Vector(
+                    value
+                        .iter()
+                        .map(|component| component.clone().into())
+                        .collect(),
+                );
+            }
+        }
+    }
+    impl From<Vec<u32>> for Vector {
+        fn from(value: Vec<u32>) -> Self {
+            if value.is_empty() {
+                return Vector::new();
+            } else {
+                return Vector(
+                    value
+                        .iter()
+                        .map(|component| component.clone().into())
+                        .collect(),
+                );
+            }
+        }
+    }
+    impl From<Vec<u16>> for Vector {
+        fn from(value: Vec<u16>) -> Self {
+            if value.is_empty() {
+                return Vector::new();
+            } else {
+                return Vector(
+                    value
+                        .iter()
+                        .map(|component| component.clone().into())
+                        .collect(),
+                );
+            }
+        }
+    }
     // 单列或单行矩阵可以转为向量
     impl From<Matrix> for Vector {
         fn from(value: Matrix) -> Self {
@@ -66,8 +155,144 @@ mod MLDataStructure {
             return v;
         }
     }
+    // Vec<Vec<f64>>、Vec<Vec<f32>>、Vec<Vec<i32>>、Vec<Vec<i16>>、Vec<Vec<u32>>、Vec<Vec<u16>> 可以转为矩阵
+    impl From<Vec<Vec<f64>>> for Matrix {
+        fn from(value: Vec<Vec<f64>>) -> Self {
+            if value[0].is_empty() || value.is_empty() {
+                return Matrix::new();
+            }
+
+            let max_len: usize = value.iter().map(|row| row.len()).max().unwrap_or(0);
+
+            let processed_value = value
+                .into_iter()
+                .map(|mut row| {
+                    row.resize(max_len, 0.0f64);
+                    row
+                })
+                .collect();
+
+            return Matrix(processed_value);
+        }
+    }
+    impl From<Vec<Vec<f32>>> for Matrix {
+        fn from(value: Vec<Vec<f32>>) -> Self {
+            if value[0].is_empty() || value.is_empty() {
+                return Matrix::new();
+            }
+
+            let max_len: usize = value.iter().map(|row| row.len()).max().unwrap_or(0);
+
+            let processed_value = value
+                .into_iter()
+                .map(|mut row| {
+                    let mut row: Vec<f64> = row
+                        .into_iter()
+                        .map(|component| component.clone().into())
+                        .collect();
+                    row.resize(max_len, 0.0);
+                    row
+                })
+                .collect();
+
+            return Matrix(processed_value);
+        }
+    }
+    impl From<Vec<Vec<i32>>> for Matrix {
+        fn from(value: Vec<Vec<i32>>) -> Self {
+            if value[0].is_empty() || value.is_empty() {
+                return Matrix::new();
+            }
+
+            let max_len: usize = value.iter().map(|row| row.len()).max().unwrap_or(0);
+
+            let processed_value = value
+                .into_iter()
+                .map(|mut row| {
+                    let mut row: Vec<f64> = row
+                        .into_iter()
+                        .map(|component| component.clone().into())
+                        .collect();
+                    row.resize(max_len, 0.0);
+                    row
+                })
+                .collect();
+
+            return Matrix(processed_value);
+        }
+    }
+    impl From<Vec<Vec<i16>>> for Matrix {
+        fn from(value: Vec<Vec<i16>>) -> Self {
+            if value[0].is_empty() || value.is_empty() {
+                return Matrix::new();
+            }
+
+            let max_len: usize = value.iter().map(|row| row.len()).max().unwrap_or(0);
+
+            let processed_value = value
+                .into_iter()
+                .map(|mut row| {
+                    let mut row: Vec<f64> = row
+                        .into_iter()
+                        .map(|component| component.clone().into())
+                        .collect();
+                    row.resize(max_len, 0.0);
+                    row
+                })
+                .collect();
+
+            return Matrix(processed_value);
+        }
+    }
+    impl From<Vec<Vec<u32>>> for Matrix {
+        fn from(value: Vec<Vec<u32>>) -> Self {
+            if value[0].is_empty() || value.is_empty() {
+                return Matrix::new();
+            }
+
+            let max_len: usize = value.iter().map(|row| row.len()).max().unwrap_or(0);
+
+            let processed_value = value
+                .into_iter()
+                .map(|mut row| {
+                    let mut row: Vec<f64> = row
+                        .into_iter()
+                        .map(|component| component.clone().into())
+                        .collect();
+                    row.resize(max_len, 0.0);
+                    row
+                })
+                .collect();
+
+            return Matrix(processed_value);
+        }
+    }
+    impl From<Vec<Vec<u16>>> for Matrix {
+        fn from(value: Vec<Vec<u16>>) -> Self {
+            if value[0].is_empty() || value.is_empty() {
+                return Matrix::new();
+            }
+
+            let max_len: usize = value.iter().map(|row| row.len()).max().unwrap_or(0);
+
+            let processed_value = value
+                .into_iter()
+                .map(|mut row| {
+                    let mut row: Vec<f64> = row
+                        .into_iter()
+                        .map(|component| component.clone().into())
+                        .collect();
+                    row.resize(max_len, 0.0);
+                    row
+                })
+                .collect();
+
+            return Matrix(processed_value);
+        }
+    }
     // 新建空向量 new 关联函数
     // 求向量长度 len 方法
+    // 判定向量是否为空 is_empty 方法
     impl Vector {
         fn new() -> Self {
             Vector(Vec::new())
@@ -77,12 +302,21 @@ mod MLDataStructure {
             let Vector(vec) = self;
             vec.len()
         }
+
+        fn is_empty(&self) -> bool {
+            match self.len() {
+                0 => true,
+                _ => false,
+            }
+        }
     }
     // 新建空矩阵 new 关联函数
     // 求矩阵行列数 len 方法
     // 求矩阵行数 row 方法
     // 求矩阵列数 col 方法
+    // 判定矩阵是否为空 is_empty 方法
     // 提取矩阵某列为向量 get_col 方法
+    // 提取矩阵某行为向量 get_row 方法
     impl Matrix {
         fn new() -> Self {
             Matrix(Vec::from(Vec::new()))
@@ -99,6 +333,13 @@ mod MLDataStructure {
             let (row, _) = self.len();
             row
         }
+        fn is_empty(&self) -> bool {
+            match self.len() {
+                (0, _) => true,
+                (_, 0) => true,
+                _ => false,
+            }
+        }
 
         fn get_col(&self, index: usize) -> Vector {
             if index >= self.col() {
@@ -110,6 +351,17 @@ mod MLDataStructure {
             }
             let col_vec: Vec<f64> = self.0.iter().map(|row| row[index]).collect();
             Vector(col_vec)
+        }
+
+        fn get_row(&self, index: usize) -> Vector {
+            if index >= self.row() {
+                panic!(
+                    "Index out of bounds: row index {} is larger than height {}",
+                    index,
+                    self.row()
+                );
+            }
+            (self.clone().0[index]).clone().into()
         }
     }
     // 重载 + 运算符实现向量加法
@@ -132,11 +384,50 @@ mod MLDataStructure {
     // 重载 * 运算符实现向量点乘
     impl std::ops::Mul for Vector {
         type Output = f64;
+        fn mul(self, rhs: Self) -> Self::Output {
+            if self.is_empty() || rhs.is_empty() {
+                panic!(
+                    "Illegal dot product between a {}-dimension vector and a {}-dimension vector!",
+                    self.len(),
+                    rhs.len()
+                )
+            }
+            if self.len() != rhs.len() {
+                panic!(
+                    "Illegal dot product between a {}-dimension vector and a {}-dimension vector!",
+                    self.len(),
+                    rhs.len()
+                )
+            }
+            let mut result: f64 = 0.0;
 
+            for i in 0..self.len() {
+                result += self[i] * rhs[i]
+            }
+
+            result
+        }
     }
     impl std::ops::Mul<&Vector> for Vector {
         type Output = f64;
+        fn mul(self, rhs: &Self) -> Self::Output {
+            if self.len() != rhs.len() {
+                panic!(
+                    "Illegal dot product between a {}-dimension vector and a {}-dimension vector!",
+                    self.len(),
+                    rhs.len()
+                )
+            }
+            let mut result: f64 = 0.0;
 
+            for i in 0..self.len() {
+                for j in 0..rhs.len() {
+                    result += self[i] * rhs[j]
+                }
+            }
+
+            result
+        }
     }
     // 重载 + 运算符实现矩阵加法
     impl std::ops::Add for Matrix {
@@ -163,7 +454,7 @@ mod MLDataStructure {
         fn mul(self, rhs: &Vector) -> Self::Output {
             if self.col() != rhs.len() {
                 panic!(
-                    "Illegal Multiplication: Matrix columns ({}) must match Vector length ({}).",
+                    "Illegal Multiplication: Matrix columns ({}) must match Vector length ({})!",
                     self.col(),
                     rhs.len()
                 );
@@ -185,7 +476,6 @@ mod MLDataStructure {
 
     enum MLDataStructErr {
         IllegalAddOperation,
-        IllegalSubOperation,
         IllegalDotProduct,
         IllegalCrossProduct,
     }
