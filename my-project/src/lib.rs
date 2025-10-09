@@ -1,5 +1,8 @@
 pub mod ml_data_structure {
-    use std::ops::{Index, IndexMut};
+    use std::{
+        fmt,
+        ops::{Index, IndexMut},
+    };
 
     #[derive(Debug, PartialEq, Clone)]
     pub struct Vector(Vec<f64>);
@@ -24,6 +27,7 @@ pub mod ml_data_structure {
             &mut self.0[index]
         }
     }
+
     // 重载 [] 运算符以实现矩阵的索引语法
     impl Index<usize> for Matrix {
         type Output = Vec<f64>;
@@ -36,18 +40,88 @@ pub mod ml_data_structure {
             &mut self.0[index]
         }
     }
+
     // 为向量实现 Display
-    impl std::fmt::Display for Vector {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            
+    impl fmt::Display for Vector {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            if self.is_empty() {
+                return write!(f, "[]");
+            }
+
+            let max_width = self
+                .0
+                .iter()
+                .map(|val| val.to_string().len())
+                .max()
+                .unwrap_or(0);
+
+            for (i, val) in self.0.iter().enumerate() {
+                if i == 0 {
+                    write!(f, "⎡ {:>width$} ⎤", val, width = max_width)?;
+                } else if i == self.len() - 1 {
+                    writeln!(f)?;
+                    write!(f, "⎣ {:>width$} ⎦", val, width = max_width)?;
+                } else {
+                    writeln!(f)?;
+                    write!(f, "⎢ {:>width$} ⎥", val, width = max_width)?;
+                }
+            }
+
+            Ok(())
         }
     }
+
     // 为矩阵实现 Display
     impl std::fmt::Display for Matrix {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            
+            if self.is_empty() {
+                return write!(f, "[]");
+            }
+
+            let mut col_widths: Vec<usize> = vec![0; self.col()];
+
+            for row in &self.0 {
+                for (col_idx, val) in row.iter().enumerate() {
+                    let len = val.to_string().len();
+                    if len > col_widths[col_idx] {
+                        col_widths[col_idx] = len;
+                    }
+                }
+            }
+
+            for (row_idx, row) in self.0.iter().enumerate() {
+                if row_idx == 0 {
+                    write!(f, "⎡ ")?;
+                } else if row_idx == self.row() - 1 {
+                    writeln!(f)?;
+                    write!(f, "⎣ ")?;
+                } else {
+                    writeln!(f)?;
+                    write!(f, "⎢ ")?;
+                }
+
+                for (col_idx, val) in row.iter().enumerate() {
+                    let width = col_widths[col_idx];
+                    write!(f, "{:>width$}", val, width = width)?;
+
+                    if col_idx < self.col() - 1 {
+                        write!(f, "  ")?;
+                    }
+                }
+
+                if row_idx == 0 {
+                    write!(f, " ⎤")?;
+                } else if row_idx == self.row() - 1 {
+                    write!(f, " ⎦")?;
+                } else {
+                    write!(f, " ⎥")?;
+                }
+            }
+
+            Ok(())
         }
     }
+
     // Vec<f64>、Vec<f32>、Vec<i32>、Vec<i16>、Vec<u32>、Vec<u16> 可以转为向量
     impl From<Vec<f64>> for Vector {
         fn from(value: Vec<f64>) -> Self {
@@ -128,6 +202,7 @@ pub mod ml_data_structure {
             }
         }
     }
+
     // 单列或单行矩阵可以转为向量
     impl From<Matrix> for Vector {
         fn from(value: Matrix) -> Self {
@@ -155,6 +230,7 @@ pub mod ml_data_structure {
             return v;
         }
     }
+
     // Vec<Vec<f64>>、Vec<Vec<f32>>、Vec<Vec<i32>>、Vec<Vec<i16>>、Vec<Vec<u32>>、Vec<Vec<u16>> 可以转为矩阵
     impl From<Vec<Vec<f64>>> for Matrix {
         fn from(value: Vec<Vec<f64>>) -> Self {
@@ -185,7 +261,7 @@ pub mod ml_data_structure {
 
             let processed_value = value
                 .into_iter()
-                .map(|mut row| {
+                .map(|row| {
                     let mut row: Vec<f64> = row
                         .into_iter()
                         .map(|component| component.clone().into())
@@ -208,7 +284,7 @@ pub mod ml_data_structure {
 
             let processed_value = value
                 .into_iter()
-                .map(|mut row| {
+                .map(|row| {
                     let mut row: Vec<f64> = row
                         .into_iter()
                         .map(|component| component.clone().into())
@@ -231,7 +307,7 @@ pub mod ml_data_structure {
 
             let processed_value = value
                 .into_iter()
-                .map(|mut row| {
+                .map(|row| {
                     let mut row: Vec<f64> = row
                         .into_iter()
                         .map(|component| component.clone().into())
@@ -254,7 +330,7 @@ pub mod ml_data_structure {
 
             let processed_value = value
                 .into_iter()
-                .map(|mut row| {
+                .map(|row| {
                     let mut row: Vec<f64> = row
                         .into_iter()
                         .map(|component| component.clone().into())
@@ -277,7 +353,7 @@ pub mod ml_data_structure {
 
             let processed_value = value
                 .into_iter()
-                .map(|mut row| {
+                .map(|row| {
                     let mut row: Vec<f64> = row
                         .into_iter()
                         .map(|component| component.clone().into())
@@ -290,26 +366,28 @@ pub mod ml_data_structure {
             return Matrix(processed_value);
         }
     }
+
     // 新建空向量 new 关联函数
     // 求向量长度 len 方法
     // 判定向量是否为空 is_empty 方法
     impl Vector {
-        fn new() -> Self {
+        pub fn new() -> Self {
             Vector(Vec::new())
         }
 
-        fn len(&self) -> usize {
+        pub fn len(&self) -> usize {
             let Vector(vec) = self;
             vec.len()
         }
 
-        fn is_empty(&self) -> bool {
+        pub fn is_empty(&self) -> bool {
             match self.len() {
                 0 => true,
                 _ => false,
             }
         }
     }
+
     // 新建空矩阵 new 关联函数
     // 求矩阵行列数 len 方法
     // 求矩阵行数 row 方法
@@ -318,22 +396,22 @@ pub mod ml_data_structure {
     // 提取矩阵某列为向量 get_col 方法
     // 提取矩阵某行为向量 get_row 方法
     impl Matrix {
-        fn new() -> Self {
+        pub fn new() -> Self {
             Matrix(Vec::from(Vec::new()))
         }
-        fn len(&self) -> (usize, usize) {
+        pub fn len(&self) -> (usize, usize) {
             let Matrix(vec) = self;
             (vec.len(), vec[0].len())
         }
-        fn col(&self) -> usize {
+        pub fn col(&self) -> usize {
             let (_, column) = self.len();
             column
         }
-        fn row(&self) -> usize {
+        pub fn row(&self) -> usize {
             let (row, _) = self.len();
             row
         }
-        fn is_empty(&self) -> bool {
+        pub fn is_empty(&self) -> bool {
             match self.len() {
                 (0, _) => true,
                 (_, 0) => true,
@@ -341,7 +419,7 @@ pub mod ml_data_structure {
             }
         }
 
-        fn get_col(&self, index: usize) -> Vector {
+        pub fn get_col(&self, index: usize) -> Vector {
             if index >= self.col() {
                 panic!(
                     "Index out of bounds: column index {} is larger than width {}",
@@ -353,7 +431,7 @@ pub mod ml_data_structure {
             Vector(col_vec)
         }
 
-        fn get_row(&self, index: usize) -> Vector {
+        pub fn get_row(&self, index: usize) -> Vector {
             if index >= self.row() {
                 panic!(
                     "Index out of bounds: row index {} is larger than height {}",
@@ -364,34 +442,30 @@ pub mod ml_data_structure {
             (self.clone().0[index]).clone().into()
         }
     }
+
     // 重载 + 运算符实现向量加法
-    impl std::ops::Add for Vector {
+    impl std::ops::Add<&Vector> for &Vector {
         type Output = Vector;
-        fn add(self, rhs: Self) -> Self::Output {
+        fn add(self, rhs: &Vector) -> Self::Output {
             if self.len() != rhs.len() {
                 panic!("Illegal add operation between vectors!")
             }
 
-            let mut v = Vector::new();
+            let result: Vec<f64> = self
+                .0
+                .iter()
+                .zip(rhs.0.iter())
+                .map(|(a, b)| a + b)
+                .collect();
 
-            for i in 0..self.len() {
-                v[i] = self[i] + rhs[i]
-            }
-
-            return v;
+            return Vector(result);
         }
     }
+
     // 重载 * 运算符实现向量点乘
-    impl std::ops::Mul for Vector {
+    impl std::ops::Mul<&Vector> for &Vector {
         type Output = f64;
-        fn mul(self, rhs: Self) -> Self::Output {
-            if self.is_empty() || rhs.is_empty() {
-                panic!(
-                    "Illegal dot product between a {}-dimension vector and a {}-dimension vector!",
-                    self.len(),
-                    rhs.len()
-                )
-            }
+        fn mul(self, rhs: &Vector) -> Self::Output {
             if self.len() != rhs.len() {
                 panic!(
                     "Illegal dot product between a {}-dimension vector and a {}-dimension vector!",
@@ -399,57 +473,32 @@ pub mod ml_data_structure {
                     rhs.len()
                 )
             }
-            let mut result: f64 = 0.0;
 
-            for i in 0..self.len() {
-                result += self[i] * rhs[i]
-            }
-
-            result
+            self.0.iter().zip(rhs.0.iter()).map(|(a, b)| a * b).sum()
         }
     }
-    impl std::ops::Mul<&Vector> for Vector {
-        type Output = f64;
-        fn mul(self, rhs: &Self) -> Self::Output {
-            if self.len() != rhs.len() {
-                panic!(
-                    "Illegal dot product between a {}-dimension vector and a {}-dimension vector!",
-                    self.len(),
-                    rhs.len()
-                )
-            }
-            let mut result: f64 = 0.0;
 
-            for i in 0..self.len() {
-                for j in 0..rhs.len() {
-                    result += self[i] * rhs[j]
-                }
-            }
-
-            result
-        }
-    }
     // 重载 + 运算符实现矩阵加法
-    impl std::ops::Add for Matrix {
+    impl std::ops::Add<&Matrix> for &Matrix {
         type Output = Matrix;
-        fn add(self, rhs: Self) -> Self::Output {
+        fn add(self, rhs: &Matrix) -> Self::Output {
             if self.len() != rhs.len() {
                 panic!("Illegal add operation between matrices!")
             }
 
-            let mut v = Matrix::new();
+            let result: Vec<Vec<f64>> = self
+                .0
+                .iter()
+                .zip(rhs.0.iter())
+                .map(|(row_a, row_b)| row_a.iter().zip(row_b.iter()).map(|(a, b)| a + b).collect())
+                .collect();
 
-            for i in 0..self.row() {
-                for j in 0..self.col() {
-                    v[i][j] = self[i][j] + rhs[i][j]
-                }
-            }
-
-            return v;
+            return Matrix(result);
         }
     }
+
     // 重载 * 运算符实现矩阵与向量的点乘
-    impl std::ops::Mul<&Vector> for Matrix {
+    impl std::ops::Mul<&Vector> for &Matrix {
         type Output = Vector;
         fn mul(self, rhs: &Vector) -> Self::Output {
             if self.col() != rhs.len() {
@@ -460,14 +509,10 @@ pub mod ml_data_structure {
                 );
             }
 
-            // 遍历矩阵的每一行，与向量进行点积
             let result_vec: Vec<f64> = self
                 .0
                 .iter()
-                .map(|row| {
-                    // 将矩阵的行（&Vec<f64>）临时包装成一个 Vector 来使用 dot 方法
-                    Vector(row.clone()) * rhs
-                })
+                .map(|row| &Vector(row.clone()) * &rhs.clone())
                 .collect();
 
             Vector(result_vec)
