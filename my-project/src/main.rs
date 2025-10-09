@@ -1,4 +1,4 @@
-use my_project::ml_data_structure::*;
+use my_project::data_structure::*;
 
 fn main() {
     let v: Vector = vec![1, 2, 4].into();
@@ -12,9 +12,8 @@ fn main() {
     ].into();
 
     println!("{} is matrix m", &m);
-
+    println!("");
     println!("{}", &(&m + &m) * &s );
-
+    println!("");
     println!("{}", &v * 5.0f64)
-
 }
