@@ -12,6 +12,9 @@ fn main() {
     ].into();
 
     println!("{} is matrix m", &m);
-    
+
     println!("{}", &(&m + &m) * &s );
+
+    println!("{}", &v * 5.0f64)
+
 }

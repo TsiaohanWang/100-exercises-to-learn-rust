@@ -370,6 +370,7 @@ pub mod ml_data_structure {
     // 新建空向量 new 关联函数
     // 求向量长度 len 方法
     // 判定向量是否为空 is_empty 方法
+    // 取出内部 Vec 数据 unpack 方法
     impl Vector {
         pub fn new() -> Self {
             Vector(Vec::new())
@@ -386,6 +387,10 @@ pub mod ml_data_structure {
                 _ => false,
             }
         }
+
+        pub fn unpack(&self) -> Vec<f64> {
+            (&self.0).clone()
+        }
     }
 
     // 新建空矩阵 new 关联函数
@@ -393,6 +398,7 @@ pub mod ml_data_structure {
     // 求矩阵行数 row 方法
     // 求矩阵列数 col 方法
     // 判定矩阵是否为空 is_empty 方法
+    // 取出内部 Vec 数据 unpack 方法
     // 提取矩阵某列为向量 get_col 方法
     // 提取矩阵某行为向量 get_row 方法
     impl Matrix {
@@ -417,6 +423,9 @@ pub mod ml_data_structure {
                 (_, 0) => true,
                 _ => false,
             }
+        }
+        pub fn unpack(&self) -> Vec<Vec<f64>> {
+            (&self.0).clone()
         }
 
         pub fn get_col(&self, index: usize) -> Vector {
@@ -478,6 +487,26 @@ pub mod ml_data_structure {
         }
     }
 
+    // 重载 * 运算符实现向量与标量点乘
+    impl std::ops::Mul<f64> for &Vector {
+        type Output = Vector;
+        fn mul(self, rhs: f64) -> Self::Output {
+            if self.is_empty() {
+                panic!(
+                    "Illegal scalar-vector multiplication: empty Vector!"
+                )
+            }
+
+            let result_vec: Vec<f64> = self
+                .0
+                .iter()
+                .map(|component| component * rhs)
+                .collect();
+
+            Vector(result_vec)
+        }
+    }
+
     // 重载 + 运算符实现矩阵加法
     impl std::ops::Add<&Matrix> for &Matrix {
         type Output = Matrix;
@@ -516,6 +545,24 @@ pub mod ml_data_structure {
                 .collect();
 
             Vector(result_vec)
+        }
+    }
+
+    // 重载 * 运算符实现矩阵与标量的点乘
+    impl std::ops::Mul<f64> for &Matrix {
+        type Output = Matrix;
+        fn mul(self, rhs: f64) -> Self::Output {
+            if self.is_empty() {
+                panic!("Illegal scalar-matrix multiplication: empty Matrix!",);
+            }
+
+            let result_vec = self
+                .0
+                .iter()
+                .map(|row| (&Vector(row.clone()) * rhs).unpack())
+                .collect();
+
+            Matrix(result_vec)
         }
     }
 
