@@ -1,6 +1,9 @@
 use crate::data_structure::Vector;
 
 pub fn vector_l1_loss(actual_vec: &Vector, predict_vec: &Vector) -> f64 {
+    if actual_vec.is_empty() || predict_vec.is_empty() {
+        panic!("Calculating L1 loss / MAE, vectors cannot be empty!");
+    }
     if actual_vec.len() != predict_vec.len() {
         panic!("Calculating L1 loss / MAE, vectors must have the same length!");
     }
@@ -19,6 +22,9 @@ pub fn vector_mae(actual_vec: &Vector, predict_vec: &Vector) -> f64 {
 }
 
 pub fn vector_l2_loss(actual_vec: &Vector, predict_vec: &Vector) -> f64 {
+    if actual_vec.is_empty() || predict_vec.is_empty() {
+        panic!("Calculating L2 loss / MSE / RMSE, vectors cannot be empty!");
+    }
     if actual_vec.len() != predict_vec.len() {
         panic!("Calculating L2 loss / MSE / RMSE, vectors must have the same length!");
     }
