@@ -54,7 +54,7 @@ impl Matrix {
                 self.col()
             );
         }
-        let col_vec: Vec<f64> = self.0.iter().map(|row| row[index]).collect();
+        let col_vec: Vec<f64> = self.unpack().iter().map(|row| row[index]).collect();
         Vector(col_vec)
     }
 
@@ -66,7 +66,7 @@ impl Matrix {
                 self.row()
             );
         }
-        (self.clone().0[index]).clone().into()
+        (self.clone().unpack()[index]).clone().into()
     }
 }
 
@@ -92,7 +92,7 @@ impl fmt::Display for Matrix {
 
         let mut col_widths: Vec<usize> = vec![0; self.col()];
 
-        for row in &self.0 {
+        for row in &self.unpack() {
             for (col_idx, val) in row.iter().enumerate() {
                 let len = val.to_string().len();
                 if len > col_widths[col_idx] {
@@ -101,7 +101,7 @@ impl fmt::Display for Matrix {
             }
         }
 
-        for (row_idx, row) in self.0.iter().enumerate() {
+        for (row_idx, row) in self.unpack().iter().enumerate() {
             if row_idx == 0 {
                 write!(f, "⎡ ")?;
             } else if row_idx == self.row() - 1 {
@@ -279,9 +279,9 @@ impl std::ops::Add<&Matrix> for &Matrix {
         }
 
         let result: Vec<Vec<f64>> = self
-            .0
+            .unpack()
             .iter()
-            .zip(rhs.0.iter())
+            .zip(rhs.unpack().iter())
             .map(|(row_a, row_b)| row_a.iter().zip(row_b.iter()).map(|(a, b)| a + b).collect())
             .collect();
 
@@ -302,7 +302,7 @@ impl std::ops::Mul<&Vector> for &Matrix {
         }
 
         let result_vec: Vec<f64> = self
-            .0
+            .unpack()
             .iter()
             .map(|row| &Vector(row.clone()) * &rhs.clone())
             .collect();
@@ -320,7 +320,7 @@ impl std::ops::Mul<f64> for &Matrix {
         }
 
         let result_vec = self
-            .0
+            .unpack()
             .iter()
             .map(|row| (&Vector(row.clone()) * rhs).unpack())
             .collect();
@@ -336,7 +336,7 @@ impl std::ops::Mul<f32> for &Matrix {
         }
 
         let result_vec = self
-            .0
+            .unpack()
             .iter()
             .map(|row| (&Vector(row.clone()) * rhs).unpack())
             .collect();
@@ -352,7 +352,7 @@ impl std::ops::Mul<u32> for &Matrix {
         }
 
         let result_vec = self
-            .0
+            .unpack()
             .iter()
             .map(|row| (&Vector(row.clone()) * rhs).unpack())
             .collect();
@@ -368,7 +368,7 @@ impl std::ops::Mul<u16> for &Matrix {
         }
 
         let result_vec = self
-            .0
+            .unpack()
             .iter()
             .map(|row| (&Vector(row.clone()) * rhs).unpack())
             .collect();
@@ -384,7 +384,7 @@ impl std::ops::Mul<i32> for &Matrix {
         }
 
         let result_vec = self
-            .0
+            .unpack()
             .iter()
             .map(|row| (&Vector(row.clone()) * rhs).unpack())
             .collect();
@@ -400,7 +400,7 @@ impl std::ops::Mul<i16> for &Matrix {
         }
 
         let result_vec = self
-            .0
+            .unpack()
             .iter()
             .map(|row| (&Vector(row.clone()) * rhs).unpack())
             .collect();

@@ -1,16 +1,87 @@
-use crate::logistic_regression::LogisRegModel;
+use crate::logistic_regression::model::LogisReg1D;
 
-pub struct ConfusMatrix<T: LogisRegModel> {
-    model: T,
-    true_pos: usize,
-    fals_pos: usize,
-    fals_neg: usize,
-    true_neg: usize,
-    threshold: f64,
+#[derive(Debug, Clone)]
+pub struct ConfusMatrix1D {
+    pub model: LogisReg1D,
+    pub true_pos: usize,
+    pub fals_pos: usize,
+    pub fals_neg: usize,
+    pub true_neg: usize,
+    pub threshold: f64,
 }
 
-impl<T: LogisRegModel> ConfusMatrix<T> {
-    fn accuracy(&self) -> f64 {
+impl ConfusMatrix1D {
+    pub fn new(model: &LogisReg1D, threshold: f64) -> Self {
+        let weight = model.weight;
+        let bias = model.bias;
+        let label = model.label_data.clone();
+        let feature = model.feature_data.clone();
+
+        let mut true_pos = 0;
+        let mut fals_pos = 0;
+        let mut fals_neg = 0;
+        let mut true_neg = 0;
+
+        let predict_vec: Vec<f64> = feature
+            .unpack()
+            .iter()
+            .map(|f| LogisReg1D::sigmoid(weight * f + bias))
+            .collect();
+
+        let predictions = predict_vec
+            .iter()
+            .map(|prob| if *prob >= threshold { 1.0 } else { 0.0 });
+
+        for (prediction, actual) in predictions.zip(label.unpack().iter()) {
+            match (prediction, *actual) {
+                (1.0, 1.0) => true_pos += 1,
+                (1.0, 0.0) => fals_pos += 1,
+                (0.0, 1.0) => fals_neg += 1,
+                (0.0, 0.0) => true_neg += 1,
+                _ => (),
+            }
+        }
+
+        Self {
+            model: model.clone(),
+            true_pos,
+            fals_pos,
+            fals_neg,
+            true_neg,
+            threshold,
+        }
+    }
+
+    pub fn refresh(&mut self) -> &mut Self {
+        let weight = self.model.weight;
+        let bias = self.model.bias;
+        let label = self.model.label_data.clone();
+        let feature = self.model.feature_data.clone();
+
+        let predict_vec: Vec<f64> = feature
+            .unpack()
+            .iter()
+            .map(|f| LogisReg1D::sigmoid(weight * f + bias))
+            .collect();
+
+        let predictions = predict_vec
+            .iter()
+            .map(|prob| if *prob >= self.threshold { 1.0 } else { 0.0 });
+
+        for (prediction, actual) in predictions.zip(label.unpack().iter()) {
+            match (prediction, *actual) {
+                (1.0, 1.0) => self.true_pos += 1,
+                (1.0, 0.0) => self.fals_pos += 1,
+                (0.0, 1.0) => self.fals_neg += 1,
+                (0.0, 0.0) => self.true_neg += 1,
+                _ => (),
+            }
+        }
+
+        self
+    }
+
+    pub fn accuracy(&self) -> f64 {
         let t_p = self.true_pos as f64;
         let t_n = self.true_neg as f64;
         let f_p = self.fals_pos as f64;
@@ -23,7 +94,7 @@ impl<T: LogisRegModel> ConfusMatrix<T> {
     fn tpr(&self) -> f64 {
         let t_p = self.true_pos as f64;
         let f_n = self.fals_neg as f64;
-        
+
         t_p / (t_p + f_n)
     }
 
@@ -31,14 +102,14 @@ impl<T: LogisRegModel> ConfusMatrix<T> {
     fn fpr(&self) -> f64 {
         let t_n = self.true_neg as f64;
         let f_p = self.fals_pos as f64;
-        
+
         f_p / (f_p + t_n)
     }
 
     fn precision(&self) -> f64 {
         let t_p = self.true_pos as f64;
         let f_p = self.fals_pos as f64;
-        
+
         t_p / (t_p + f_p)
     }
 
@@ -49,4 +120,6 @@ impl<T: LogisRegModel> ConfusMatrix<T> {
 
         2.0 * t_p / (2.0 * t_p + f_p + f_n)
     }
+
+    fn display_roc(&self) {}
 }

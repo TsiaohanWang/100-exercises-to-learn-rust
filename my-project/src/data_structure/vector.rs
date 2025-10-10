@@ -14,6 +14,8 @@ impl MLDataStruct for Vector {}
 // 求向量长度 len 方法
 // 判定向量是否为空 is_empty 方法
 // 取出内部 Vec 数据 unpack 方法
+// 压入新分量 push 方法
+// 查看最后一个分量 find_last 方法
 impl Vector {
     pub fn new() -> Self {
         Vector(Vec::new())
@@ -33,6 +35,15 @@ impl Vector {
 
     pub fn unpack(&self) -> Vec<f64> {
         (&self.0).clone()
+    }
+
+    pub fn push(&mut self, new_component: f64) -> &Self {
+        self.0.push(new_component);
+        self
+    }
+
+    pub fn find_last(&self) -> f64 {
+        self[self.len() - 1]
     }
 }
 
@@ -57,13 +68,13 @@ impl fmt::Display for Vector {
         }
 
         let max_width = self
-            .0
+            .unpack()
             .iter()
             .map(|val| val.to_string().len())
             .max()
             .unwrap_or(0);
 
-        for (i, val) in self.0.iter().enumerate() {
+        for (i, val) in self.unpack().iter().enumerate() {
             if i == 0 {
                 write!(f, "⎡ {:>width$} ⎤", val, width = max_width)?;
             } else if i == self.len() - 1 {
@@ -197,9 +208,9 @@ impl std::ops::Add<&Vector> for &Vector {
         }
 
         let result: Vec<f64> = self
-            .0
+            .unpack()
             .iter()
-            .zip(rhs.0.iter())
+            .zip(rhs.unpack().iter())
             .map(|(a, b)| a + b)
             .collect();
 
@@ -219,7 +230,7 @@ impl std::ops::Mul<&Vector> for &Vector {
             )
         }
 
-        self.0.iter().zip(rhs.0.iter()).map(|(a, b)| a * b).sum()
+        self.unpack().iter().zip(rhs.unpack().iter()).map(|(a, b)| a * b).sum()
     }
 }
 
@@ -231,7 +242,7 @@ impl std::ops::Mul<f64> for &Vector {
             panic!("Illegal scalar-vector multiplication: empty Vector!")
         }
 
-        let result_vec: Vec<f64> = self.0.iter().map(|component| component * rhs).collect();
+        let result_vec: Vec<f64> = self.unpack().iter().map(|component| component * rhs).collect();
 
         Vector(result_vec)
     }
@@ -245,7 +256,7 @@ impl std::ops::Mul<f32> for &Vector {
 
         let rhs: f64 = rhs.into();
 
-        let result_vec: Vec<f64> = self.0.iter().map(|component| component * rhs).collect();
+        let result_vec: Vec<f64> = self.unpack().iter().map(|component| component * rhs).collect();
 
         Vector(result_vec)
     }
@@ -259,7 +270,7 @@ impl std::ops::Mul<i32> for &Vector {
 
         let rhs: f64 = rhs.into();
 
-        let result_vec: Vec<f64> = self.0.iter().map(|component| component * rhs).collect();
+        let result_vec: Vec<f64> = self.unpack().iter().map(|component| component * rhs).collect();
 
         Vector(result_vec)
     }
@@ -273,7 +284,7 @@ impl std::ops::Mul<i16> for &Vector {
 
         let rhs: f64 = rhs.into();
 
-        let result_vec: Vec<f64> = self.0.iter().map(|component| component * rhs).collect();
+        let result_vec: Vec<f64> = self.unpack().iter().map(|component| component * rhs).collect();
 
         Vector(result_vec)
     }
@@ -287,7 +298,7 @@ impl std::ops::Mul<u32> for &Vector {
 
         let rhs: f64 = rhs.into();
 
-        let result_vec: Vec<f64> = self.0.iter().map(|component| component * rhs).collect();
+        let result_vec: Vec<f64> = self.unpack().iter().map(|component| component * rhs).collect();
 
         Vector(result_vec)
     }
@@ -301,7 +312,7 @@ impl std::ops::Mul<u16> for &Vector {
 
         let rhs: f64 = rhs.into();
 
-        let result_vec: Vec<f64> = self.0.iter().map(|component| component * rhs).collect();
+        let result_vec: Vec<f64> = self.unpack().iter().map(|component| component * rhs).collect();
 
         Vector(result_vec)
     }
