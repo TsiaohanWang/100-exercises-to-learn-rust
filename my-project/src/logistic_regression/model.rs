@@ -59,7 +59,7 @@ impl LogisReg1D {
         let mut slope: f64 = 0.0;
 
         for i in 0..example_num {
-            slope += LogisReg1D::sigmoid(weight * feature[i] + bias - label[i]) * feature[i];
+            slope += (LogisReg1D::sigmoid(weight * feature[i] + bias) - label[i]) * feature[i];
         }
 
         slope / (example_num as f64)

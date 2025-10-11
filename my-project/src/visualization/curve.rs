@@ -1,7 +1,6 @@
 use crate::{data_structure::vector::Vector, visualization::Precision};
 use std::fs;
 use std::io;
-use std::iter;
 use std::path::Path;
 
 pub fn roc_curve(
@@ -43,25 +42,12 @@ pub fn roc_curve(
         .0
         .iter()
         .zip(tpr_vec.0.iter())
-        .map(|(fpr, tpr)| (*fpr, *tpr))
+        .map(|(fpr, tpr)| (fpr.clone(), tpr.clone()))
         .collect();
 
     roc_curve_canvas(&tuple_vec, interval, path);
 }
 
-// 在 src/plot.rs 或其他模块中
-
-// --- 常量定义，用于绘图字符 ---
-
-/// 在命令行中绘制一个二维散点图，显示 [0,1] x [0,1] 的区域。
-///
-/// # Arguments
-/// * `points` - 一个包含 (x, y) 坐标元组的 Vec 的引用。
-///              所有 x 和 y 值都应在 [0.0, 1.0] 范围内。
-/// * `height` - 绘图区域的高度（字符数）。
-///
-/// # Panics
-/// 如果 points 为空或 height 小于 2，则会 panic。
 pub fn roc_curve_canvas(points: &Vec<(f64, f64)>, interval: f64, path: impl AsRef<Path>) {
     const POINT: char = '•';
     const V_AXIS: char = '│';
@@ -143,9 +129,9 @@ pub fn roc_curve_canvas(points: &Vec<(f64, f64)>, interval: f64, path: impl AsRe
             grid_plot.0 = lower_x;
         }
         if plot_y >= lower_y + distance {
-            grid_plot.0 = upper_y;
+            grid_plot.1 = upper_y;
         } else {
-            grid_plot.0 = lower_y;
+            grid_plot.1 = lower_y;
         }
 
         grid_points.push(grid_plot);
@@ -166,6 +152,9 @@ pub fn roc_curve_canvas(points: &Vec<(f64, f64)>, interval: f64, path: impl AsRe
     }
     for col in 2..(iteration + 3) {
         write_char_at(col, iteration + 1, H_AXIS);
+        if col == 2 {
+            write_char_at(col, iteration + 1, ORIGIN);
+        }
     }
     for (px, py) in grid_pos {
         write_char_at(px + 2, iteration + 1 - py, POINT);

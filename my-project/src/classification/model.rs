@@ -1,5 +1,5 @@
-use crate::{data_structure::Vector, logistic_regression::model::LogisReg1D};
 use crate::visualization::Precision;
+use crate::{data_structure::Vector, logistic_regression::model::LogisReg1D};
 
 #[derive(Debug, Clone)]
 pub struct ConfusMatrix1D {
@@ -58,6 +58,11 @@ impl ConfusMatrix1D {
         let bias = self.model.bias;
         let label = self.model.label_data.clone();
         let feature = self.model.feature_data.clone();
+
+        self.true_pos = 0;
+        self.fals_pos = 0;
+        self.fals_neg = 0;
+        self.true_neg = 0;
 
         let predict_vec: Vec<f64> = feature
             .unpack()
@@ -157,6 +162,4 @@ impl ConfusMatrix1D {
 
         2.0 * t_p / (2.0 * t_p + f_p + f_n)
     }
-
-    
 }
