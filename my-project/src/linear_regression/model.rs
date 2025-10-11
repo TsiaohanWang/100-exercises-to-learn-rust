@@ -124,13 +124,15 @@ impl LinearReg1D {
             mse_records.push(new_mse);
         }
 
+        let rec_times = rec_times + remained_epoch;
+
         println!(
             "│ Learning rate: {}, Total epoch: {}",
             learning_rate, total_epoch
         );
         println!(
             "│ MSE recorded {} times, with every {} epochs",
-            rec_times, epoch
+            rec_times + remained_epoch, epoch
         );
         println!("├─");
         println!("│ Current model: y = ({}) * x + ({})", self.weight, self.bias);

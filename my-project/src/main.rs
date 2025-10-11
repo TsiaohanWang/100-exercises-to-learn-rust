@@ -2,6 +2,8 @@ use my_project::classification::model::ConfusMatrix1D;
 use my_project::data_structure::*;
 use my_project::linear_regression::model::LinearReg1D;
 use my_project::logistic_regression::model::LogisReg1D;
+use my_project::visualization::curve;
+use my_project::visualization::Precision;
 
 fn main() {
     let v: Vector = vec![1, 2, 4].into();
@@ -20,9 +22,17 @@ fn main() {
 
     let mut log_reg = LogisReg1D::new("label".into(), "feature".into(), label, feature);
 
-    let conf_m = ConfusMatrix1D::new(&log_reg, 0.6);
+    let mut conf_m = ConfusMatrix1D::new(&log_reg, 0.6);
 
     model.train(0.0001, 100000, 1000);
 
     log_reg.train(0.001, 100000, 100);
+
+    let file_path = "my_text_canvas.txt";
+
+    curve::roc_curve(conf_m.display_roc(Precision::F01), file_path);
+
+    let l:Vec<(f64,f64)> = vec![(0.0,1.0),(0.25,0.5),(0.5,0.5),(1.0,0.25)].into();
+
+    curve::roc_curve_canvas(&l, 0.25, file_path);
 }

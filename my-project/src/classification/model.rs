@@ -1,4 +1,5 @@
-use crate::logistic_regression::model::LogisReg1D;
+use crate::{data_structure::Vector, logistic_regression::model::LogisReg1D};
+use crate::visualization::Precision;
 
 #[derive(Debug, Clone)]
 pub struct ConfusMatrix1D {
@@ -81,6 +82,42 @@ impl ConfusMatrix1D {
         self
     }
 
+    pub fn display_roc(&mut self, precision: Precision) -> (Vector, Vector, Precision) {
+        let (interval, iteration): (f64, usize) = match precision {
+            Precision::F0001 => (0.0001, 10001),
+            Precision::F001 => (0.001, 1001),
+            Precision::F01 => (0.01, 101),
+            Precision::F1 => (0.1, 11),
+            Precision::DEFINE(intrv) => {
+                if 1.0 % intrv != 0.0 {
+                    panic!("Your precision is invalid when defining ROC example interval!")
+                }
+
+                (intrv, (1.0 / intrv + 1.0) as usize)
+            }
+        };
+
+        let restored_threshold = self.threshold;
+
+        self.threshold = 0.0;
+
+        let mut fpr_data = Vector::with_capacity(iteration);
+
+        let mut tpr_data = Vector::with_capacity(iteration);
+
+        for _ in 0..iteration {
+            self.refresh();
+            fpr_data.push(self.fpr());
+            tpr_data.push(self.tpr());
+            self.threshold += interval;
+        }
+
+        self.threshold = restored_threshold;
+        self.refresh();
+
+        (fpr_data, tpr_data, precision)
+    }
+
     pub fn accuracy(&self) -> f64 {
         let t_p = self.true_pos as f64;
         let t_n = self.true_neg as f64;
@@ -121,5 +158,5 @@ impl ConfusMatrix1D {
         2.0 * t_p / (2.0 * t_p + f_p + f_n)
     }
 
-    fn display_roc(&self) {}
+    
 }
